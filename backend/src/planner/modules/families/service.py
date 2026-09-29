@@ -2,6 +2,8 @@
 
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +32,15 @@ class LeaderFamily:
     created: bool
 
 
+InviteStatus = Literal["valid", "expired", "invalid"]
+
+
+@dataclass(frozen=True, slots=True)
+class FamilyInvite:
+    family: FamilyRow
+    invite: InviteRow
+
+
 class FamilyService:
     def __init__(self, db: Database, tracker: Tracker, app_version: str) -> None:
         self._db = db
@@ -42,8 +53,12 @@ class FamilyService:
         A user who already belongs to any family (e.g. joined as acceptor) keeps it; no second family is created.
         """
         ctx = EventContext(platform=platform, user_id=user.id, app_version=self._app_version)
+        # Prefer the active family; fall back to the oldest membership.
         existing = await session.scalar(
-            select(MemberRow).where(MemberRow.user_id == user.id).order_by(MemberRow.created_at).limit(1)
+            select(MemberRow)
+            .where(MemberRow.user_id == user.id)
+            .order_by((MemberRow.family_id == user.active_family_id).desc(), MemberRow.created_at)
+            .limit(1)
         )
         if existing is not None:
             family = await session.get(FamilyRow, existing.family_id)
@@ -76,6 +91,69 @@ class FamilyService:
                 )
             ).all()
         return [FamilySummary(id=r.id, name=r.name, role=Role(r.role)) for r in rows]
+
+    async def find_invite(self, session: AsyncSession, token: str) -> tuple[InviteRow | None, InviteStatus]:
+        invite = await session.scalar(select(InviteRow).where(InviteRow.token == token).with_for_update())
+        if invite is None:
+            return None, "invalid"
+        now = datetime.now(UTC)
+        if invite.revoked_at is not None or (invite.expires_at is not None and invite.expires_at <= now):
+            return invite, "expired"
+        return invite, "valid"
+
+    async def accept_invite(
+        self, session: AsyncSession, user: UserRow, invite: InviteRow
+    ) -> Literal["accepted", "already_member"]:
+        """The acceptor joins as an adult and the family becomes active. The caller holds the user row lock.
+
+        The caller emits `invite_opened` / `invite_accepted` (in that order, for the funnel)."""
+        user.active_family_id = invite.family_id  # they came for this family: show it
+        member = await session.scalar(
+            select(MemberRow).where(MemberRow.family_id == invite.family_id, MemberRow.user_id == user.id)
+        )
+        if member is not None:
+            return "already_member"
+        session.add(
+            MemberRow(
+                id=new_id(),
+                family_id=invite.family_id,
+                user_id=user.id,
+                display_name=user.first_name,
+                role=Role.ADULT,
+            )
+        )
+        invite.uses += 1
+        return "accepted"
+
+    async def get_family(self, session: AsyncSession, family_id: uuid.UUID) -> FamilyRow:
+        family = await session.get(FamilyRow, family_id)
+        assert family is not None
+        return family
+
+    async def active_family_invite(
+        self, session: AsyncSession, user: UserRow, platform: Platform
+    ) -> FamilyInvite | None:
+        """The invite of the user's active family (created when missing) — for re-sharing it."""
+        if user.active_family_id is None:
+            return None
+        family = await session.get(FamilyRow, user.active_family_id)
+        if family is None:
+            return None
+        invite = await self._active_invite(session, family.id)
+        if invite is None:
+            ctx = EventContext(platform, user.id, family.id, app_version=self._app_version)
+            invite = self._new_invite(session, family.id, user.id, ctx)
+        return FamilyInvite(family, invite)
+
+    async def set_active_family(self, session: AsyncSession, user: UserRow, family_id: uuid.UUID) -> bool:
+        """False when the user is not a member of that family."""
+        is_member = await session.scalar(
+            select(MemberRow.id).where(MemberRow.family_id == family_id, MemberRow.user_id == user.id)
+        )
+        if is_member is None:
+            return False
+        user.active_family_id = family_id
+        return True
 
     async def _active_invite(self, session: AsyncSession, family_id: uuid.UUID) -> InviteRow | None:
         return await session.scalar(

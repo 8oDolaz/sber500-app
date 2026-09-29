@@ -1,12 +1,15 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router";
 import { homeRouteFor, useAuth } from "./auth/AuthProvider";
+import { Splash } from "./screens/Splash";
 
-/** Screens for signed-in users; anyone else goes through the splash/gate. */
+/** Screens for signed-in users. While the session is being restored the splash shows,
+ * so reloading or deep-linking into /help or /home keeps the user on that screen. */
 export function RequireSession({ children }: { children: ReactNode }) {
   const { state } = useAuth();
   if (state.status === "authenticated") return children;
-  return <Navigate to="/" replace />;
+  if (state.status === "anonymous") return <Navigate to="/" replace />;
+  return <Splash />;
 }
 
 /** Screens for guests (welcome); a signed-in user is sent to where they belong. */

@@ -1,6 +1,20 @@
 {
   "components": {
     "schemas": {
+      "ActiveFamily": {
+        "properties": {
+          "family_id": {
+            "format": "uuid",
+            "title": "Family Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "family_id"
+        ],
+        "title": "ActiveFamily",
+        "type": "object"
+      },
       "AuthFailure": {
         "properties": {
           "reason": {
@@ -1027,6 +1041,51 @@
           }
         },
         "summary": "Update Me",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/active-family": {
+      "put": {
+        "description": "Switch the family shown in the app (a user can belong to several families).",
+        "operationId": "set_active_family_v1_me_active_family_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActiveFamily"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "not a member"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Active Family",
         "tags": [
           "me"
         ]

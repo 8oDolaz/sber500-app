@@ -136,3 +136,14 @@ describe("magic link", () => {
     expect(await screen.findByText("Войти через Telegram")).toBeTruthy();
   });
 });
+
+describe("deep links", () => {
+  it("reloading a signed-in screen stays on it", async () => {
+    const { fetchImpl } = fakeBackend({
+      "POST /v1/auth/refresh": () => ({ status: 200, body: sessionBody }),
+      "GET /v1/me": () => ({ status: 200, body: me({ onboarding_completed: true }) }),
+    });
+    renderApp(makeServices(fetchImpl as typeof fetch), "/help");
+    expect(await screen.findByText("Пересылайте сообщения боту")).toBeTruthy();
+  });
+});

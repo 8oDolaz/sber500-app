@@ -56,3 +56,47 @@ def message_update(text: str, *, tg_user_id: int = 42, first_name: str = "Лид
             text=text,
         ),
     )
+
+
+def _user(tg_user_id: int, first_name: str) -> User:
+    return User(id=tg_user_id, is_bot=False, first_name=first_name, language_code="ru")
+
+
+def inline_query_update(query: str, *, tg_user_id: int = 42) -> Update:
+    from aiogram.types import InlineQuery
+
+    return Update(
+        update_id=next(_ids),
+        inline_query=InlineQuery(id=str(next(_ids)), from_user=_user(tg_user_id, "Лидер"), query=query, offset=""),
+    )
+
+
+def chosen_inline_update(result_id: str, *, tg_user_id: int = 42) -> Update:
+    from aiogram.types import ChosenInlineResult
+
+    return Update(
+        update_id=next(_ids),
+        chosen_inline_result=ChosenInlineResult(
+            result_id=result_id, from_user=_user(tg_user_id, "Лидер"), query="invite"
+        ),
+    )
+
+
+def callback_update(data: str, *, tg_user_id: int = 42, first_name: str = "Лидер") -> Update:
+    from aiogram.types import CallbackQuery
+
+    return Update(
+        update_id=next(_ids),
+        callback_query=CallbackQuery(
+            id=str(next(_ids)),
+            from_user=_user(tg_user_id, first_name),
+            chat_instance="ci",
+            data=data,
+            message=Message(
+                message_id=next(_ids),
+                date=datetime.now(UTC),
+                chat=Chat(id=tg_user_id, type="private"),
+                text="…",
+            ),
+        ),
+    )

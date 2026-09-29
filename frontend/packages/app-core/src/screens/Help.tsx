@@ -8,11 +8,17 @@ import { useScreenView } from "../useScreenView";
 /** "Как пользоваться" (chip on screen D). Not in the design yet: TODO(design). */
 export function Help() {
   useScreenView("help");
-  const { state, signOut } = useAuth();
-  const { platform } = useServices();
+  const { state, signOut, updateMe } = useAuth();
+  const { platform, api } = useServices();
   const navigate = useNavigate();
   const t = ru.help;
-  const botLink = state.status === "authenticated" ? state.me.bot_link : null;
+  const me = state.status === "authenticated" ? state.me : null;
+  const botLink = me?.bot_link ?? null;
+
+  async function switchFamily(familyId: string) {
+    const { data } = await api.PUT("/v1/me/active-family", { body: { family_id: familyId } });
+    if (data) updateMe(data);
+  }
 
   return (
     <Screen>
@@ -27,6 +33,26 @@ export function Help() {
             <p>{b.text}</p>
           </section>
         ))}
+        {me && me.families.length > 1 ? (
+          <section>
+            <h2>{t.families}</h2>
+            <ul className="kn-list">
+              {me.families.map((f) => (
+                <li key={f.id}>
+                  <button
+                    type="button"
+                    className="kn-back"
+                    aria-pressed={f.id === me.active_family_id}
+                    onClick={() => void switchFamily(f.id)}
+                  >
+                    {f.name}
+                    {f.id === me.active_family_id ? ` — ${t.active}` : ""}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </article>
       <div className="kn-stack" style={{ marginTop: 32 }}>
         {botLink ? <Button onClick={() => platform.openLink(botLink)}>{t.openBot}</Button> : null}

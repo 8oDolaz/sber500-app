@@ -59,6 +59,17 @@ make contract   # after changing API schemas: regenerate openapi.json and the TS
 
 Integration tests use `TEST_DATABASE_URL` and `TEST_REDIS_URL` when they are set (as in CI). Otherwise they start throwaway containers.
 
+## Telegram bot setup
+
+Use a separate bot per environment (dev, staging, production). In @BotFather:
+
+1. `/newbot` → put the token in `BOT_TOKEN` and the username (without `@`) in `BOT_USERNAME`.
+2. `/setinline` → enable inline mode. The «Поделиться» button on the invite message uses it (placeholder: `пригласить в семью`).
+3. `/setinlinefeedback` → `Enabled`, so shared invites are counted (`invite_shared`).
+4. `/setcommands` → `start - Начать` and `invite - Ссылка-приглашение в семью`.
+
+Locally the bot runs in long polling mode (`make bot`). On a server it runs as a webhook inside the API process: set `BOT_WEBHOOK_SECRET` and `PUBLIC_APP_URL`, then run `python -m planner.cli set-webhook`.
+
 ## LLM access (Sber500 accelerator)
 
 - The proxy is OpenAI-compatible: `LLM_BASE_URL=https://shared1.multitool.works:4000/v1`, and `LLM_API_KEY` goes in env only, never in git.

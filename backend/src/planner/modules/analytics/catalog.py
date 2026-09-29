@@ -188,3 +188,29 @@ class OnboardingCompleted(EventProps):
     """Emitted by the server when the user presses "В семью" (screen C) for the first time."""
 
     is_leader: bool
+
+
+# invites (M3)
+InviteResult = Literal["accepted", "expired", "invalid", "already_member"]
+
+
+@analytics_event("invite_opened", owner="families")
+class InviteOpened(EventProps):
+    """`/start inv_<token>`: someone followed an invite link, whatever the outcome."""
+
+    invite_id: UUID | None
+    is_new_user: bool
+    result: InviteResult
+
+
+@analytics_event("invite_accepted", owner="families")
+class InviteAccepted(EventProps):
+    invite_id: UUID
+    member_role: Literal["owner", "adult", "teen", "child", "caregiver"]
+
+
+@analytics_event("invite_shared", owner="families")
+class InviteShared(EventProps):
+    """Sent through the bot's inline "Поделиться" button. Native forwards can't be observed: a lower bound."""
+
+    invite_id: UUID

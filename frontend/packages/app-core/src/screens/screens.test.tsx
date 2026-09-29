@@ -103,3 +103,32 @@ describe("main screen (D) and help", () => {
     expect(await screen.findByText("Зарегистрироваться")).toBeTruthy();
   });
 });
+
+describe("family switcher (help)", () => {
+  it("is shown only with several families and switches the active one", async () => {
+    const two = {
+      ...me({ onboarding_completed: true }),
+      families: [
+        { id: "f1", name: "Семья Лидер", role: "owner" },
+        { id: "f2", name: "Семья Мама", role: "adult" },
+      ],
+    };
+    const { fetchImpl, calls } = fakeBackend({
+      "POST /v1/auth/refresh": () => ({ status: 200, body: sessionBody }),
+      "GET /v1/me": () => ({ status: 200, body: two }),
+      "PUT /v1/me/active-family": ({ body }) => ({ status: 200, body: { ...two, active_family_id: body.family_id } }),
+    });
+    renderApp(makeServices(fetchImpl as typeof fetch), "/help");
+    expect(await screen.findByText("Ваши семьи")).toBeTruthy();
+    expect(screen.getByText("Семья Лидер — сейчас открыта")).toBeTruthy();
+    await userEvent.click(screen.getByText("Семья Мама"));
+    expect(await screen.findByText("Семья Мама — сейчас открыта")).toBeTruthy();
+    expect(calls.find((c) => c.method === "PUT")?.body).toEqual({ family_id: "f2" });
+  });
+
+  it("is hidden with a single family", async () => {
+    renderApp(makeServices(signedIn({}, true).fetchImpl as typeof fetch), "/help");
+    await screen.findByText("Пересылайте сообщения боту");
+    expect(screen.queryByText("Ваши семьи")).toBeNull();
+  });
+});

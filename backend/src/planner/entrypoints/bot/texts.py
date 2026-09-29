@@ -18,7 +18,27 @@ HANDSHAKE_EXPIRED = (
     "Или откройте пространство семьи по этой ссылке — {magic_link}"
 )
 
-INVITE_SOON = "Приглашения в семью заработают совсем скоро 🙌"
+# F — the acceptor's first message. Design copy was a placeholder ("переходи и че то делай"). TODO(design)
+INVITE_ACCEPTED = "Ты получил приглашение в пространство семьи «{family}». Переходи — {magic_link}"
+
+ALREADY_MEMBER = "Ты уже в семье «{family}». Вот пространство семьи — {magic_link}"
+
+INVITE_INVALID = (
+    "Это приглашение недействительно или устарело. Попроси родных прислать новую ссылку "
+    "или создай своё пространство семьи."
+)
+CREATE_OWN_FAMILY = "Создать своё пространство"
+
+SHARE = "Поделиться"
+JOIN = "Присоединиться"
+
+# What the recipient sees when the leader shares through the inline button.
+INVITE_CARD = "Присоединяйся к пространству семьи «{family}» в kainem:\n{invite_link}"
+INLINE_TITLE = "Пригласить в «{family}»"
+INLINE_DESCRIPTION = "Отправить ссылку-приглашение"
+INLINE_REGISTER = "Сначала зарегистрируйте семью"
+
+NOT_REGISTERED = "Сначала зарегистрируйте семью — отправьте /start."
 
 
 def invite(invite_link: str) -> str:
@@ -35,3 +55,15 @@ def logged_in(magic_link: str) -> str:
 
 def handshake_expired(magic_link: str) -> str:
     return HANDSHAKE_EXPIRED.format(magic_link=escape(magic_link))
+
+
+def invite_accepted(family: str, magic_link: str) -> str:
+    return INVITE_ACCEPTED.format(family=escape(family), magic_link=escape(magic_link))
+
+
+def already_member(family: str, magic_link: str) -> str:
+    return ALREADY_MEMBER.format(family=escape(family), magic_link=escape(magic_link))
+
+
+def invite_card(family: str, invite_link: str) -> str:
+    return INVITE_CARD.format(family=escape(family), invite_link=escape(invite_link))

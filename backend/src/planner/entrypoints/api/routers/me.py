@@ -60,3 +60,15 @@ async def update_me(body: MeUpdate, principal: AuthDep, c: ContainerDep, platfor
     if body.onboarding_completed:
         await c.registration.complete_onboarding(principal.user_id, platform, c.settings.app_version)
     return await _me(c, principal.user_id)
+
+
+class ActiveFamily(BaseModel):
+    family_id: uuid.UUID
+
+
+@router.put("/me/active-family", response_model=Me, responses={403: {"description": "not a member"}})
+async def set_active_family(body: ActiveFamily, principal: AuthDep, c: ContainerDep) -> Me:
+    """Switch the family shown in the app (a user can belong to several families)."""
+    if not await c.registration.switch_family(principal.user_id, body.family_id):
+        raise HTTPException(403, "not a member of this family")
+    return await _me(c, principal.user_id)
