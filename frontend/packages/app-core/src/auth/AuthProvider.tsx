@@ -14,6 +14,8 @@ interface AuthApi {
   signedIn(session: Session): Promise<void>;
   signOut(): Promise<void>;
   reload(): Promise<void>;
+  /** Replace the profile with a fresh copy returned by an API call (no loading state). */
+  updateMe(me: Me): void;
 }
 
 const AuthContext = createContext<AuthApi | null>(null);
@@ -61,6 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signOut() {
         await session.logout();
+      },
+      updateMe(me) {
+        setState({ status: "authenticated", me });
       },
     }),
     [state, reload, loadMe, session],

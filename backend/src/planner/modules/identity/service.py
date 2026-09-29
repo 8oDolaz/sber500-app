@@ -97,7 +97,7 @@ class IdentityService:
         self._tracker = tracker
         self._cfg = config
 
-    # ------------------------------------------------------------------ Telegram users
+    # --Telegram users
     async def find_telegram_user(self, session: AsyncSession, tg_user_id: int) -> UserRow | None:
         return await session.scalar(
             select(UserRow)
@@ -163,7 +163,7 @@ class IdentityService:
         assert user is not None
         return user
 
-    # ------------------------------------------------------------------ PWA ↔ bot handshake
+    # --PWA ↔ bot handshake
     async def start_handshake(
         self,
         *,
@@ -236,7 +236,7 @@ class IdentityService:
             )
             return tokens
 
-    # ------------------------------------------------------------------ magic links
+    # --magic links
     async def issue_magic_token(self, session: AsyncSession, user_id: uuid.UUID) -> str:
         token = new_token(32)
         session.add(
@@ -275,7 +275,7 @@ class IdentityService:
                 return tokens
         raise AuthError(reason or "invalid")
 
-    # ------------------------------------------------------------------ sessions
+    # --sessions
     async def refresh(self, refresh_token: str) -> AuthTokens:
         async with self._db.transaction() as session:
             row = await session.scalar(

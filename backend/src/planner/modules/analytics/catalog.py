@@ -70,7 +70,7 @@ def spec_for(model: BaseModel) -> EventSpec:
     return CATALOG[name]
 
 
-# ---------------------------------------------------------------- client events
+# client events
 Screen = Literal["splash", "welcome", "onboarding", "home", "help"]
 
 
@@ -104,7 +104,7 @@ class HowToClicked(EventProps):
     pass
 
 
-# ---------------------------------------------------------------- server events
+# server events
 @analytics_event("llm_budget_exceeded", owner="platform")
 class LlmBudgetExceeded(EventProps):
     scope: Literal["program", "family"]
@@ -112,7 +112,7 @@ class LlmBudgetExceeded(EventProps):
     feature: str
 
 
-# ---------------------------------------------------------------- identity & families (M1)
+# identity & families (M1)
 LoginMethod = Literal["poll", "test"]  # magic-link logins are tracked as magic_link_redeemed
 
 
@@ -165,7 +165,7 @@ class InviteCreated(EventProps):
     invite_id: UUID
 
 
-# ---------------------------------------------------------------- bot delivery
+# bot delivery
 @analytics_event("bot_blocked", owner="notifications")
 class BotBlocked(EventProps):
     pass
@@ -180,3 +180,11 @@ class BotUnblocked(EventProps):
 class BotMessageFailed(EventProps):
     reason: Literal["forbidden", "rate_limited", "other"]
     template: str
+
+
+# onboarding (M2)
+@analytics_event("onboarding_completed", counts_as_active=True, owner="registration")
+class OnboardingCompleted(EventProps):
+    """Emitted by the server when the user presses "В семью" (screen C) for the first time."""
+
+    is_leader: bool

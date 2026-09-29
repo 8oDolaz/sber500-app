@@ -306,6 +306,10 @@
             ],
             "title": "Active Family Id"
           },
+          "bot_link": {
+            "title": "Bot Link",
+            "type": "string"
+          },
           "families": {
             "items": {
               "$ref": "#/components/schemas/FamilyOut"
@@ -325,9 +329,24 @@
           "user",
           "onboarding_completed",
           "active_family_id",
-          "families"
+          "families",
+          "bot_link"
         ],
         "title": "Me",
+        "type": "object"
+      },
+      "MeUpdate": {
+        "properties": {
+          "onboarding_completed": {
+            "const": true,
+            "title": "Onboarding Completed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "onboarding_completed"
+        ],
+        "title": "MeUpdate",
         "type": "object"
       },
       "Pending": {
@@ -951,6 +970,63 @@
           }
         },
         "summary": "Get Me",
+        "tags": [
+          "me"
+        ]
+      },
+      "patch": {
+        "operationId": "update_me_v1_me_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-client-platform",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Client-Platform"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Me",
         "tags": [
           "me"
         ]

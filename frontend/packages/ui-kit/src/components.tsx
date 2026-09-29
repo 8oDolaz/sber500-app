@@ -112,3 +112,37 @@ export function ListRow({ children, meta, done, onToggle, toggleLabel }: ListRow
     </li>
   );
 }
+
+export function Sheet({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="kn-sheet-backdrop" onClick={onClose}>
+      <div
+        className="kn-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.key === "Escape" && onClose()}
+      >
+        <h2>{title}</h2>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function BackButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+  return (
+    <button type="button" className="kn-back" onClick={onClick}>
+      ‹ {children}
+    </button>
+  );
+}

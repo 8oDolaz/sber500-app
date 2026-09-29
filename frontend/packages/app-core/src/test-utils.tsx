@@ -1,6 +1,6 @@
 import { Analytics } from "@kainem/analytics";
 import { createApiClient } from "@kainem/api-client";
-import type { KeyValueStorage, PlatformAdapter } from "@kainem/platform";
+import type { InstallApi, KeyValueStorage, PlatformAdapter } from "@kainem/platform";
 import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
@@ -44,7 +44,23 @@ export function memoryStorage(initial: Record<string, unknown> = {}): KeyValueSt
   };
 }
 
-export function makeServices(fetchImpl: typeof fetch, storage = memoryStorage()): AppServices {
+export function fakeInstall(overrides: Partial<InstallApi> = {}): InstallApi {
+  return {
+    os: () => "android",
+    isInstalled: () => false,
+    canPrompt: () => false,
+    prompt: async () => "unavailable",
+    needsManualInstructions: () => false,
+    onChange: () => () => {},
+    ...overrides,
+  };
+}
+
+export function makeServices(
+  fetchImpl: typeof fetch,
+  storage = memoryStorage(),
+  install?: InstallApi,
+): AppServices {
   const platform: PlatformAdapter = {
     kind: "pwa",
     displayMode: () => "browser",
@@ -52,6 +68,7 @@ export function makeServices(fetchImpl: typeof fetch, storage = memoryStorage())
     storage,
     share: async () => "shared",
     openLink: vi.fn(),
+    ...(install ? { install } : {}),
   };
   const ctx = { platform: "pwa", displayMode: () => "browser" };
   const baseUrl = "http://app.test/api";
@@ -82,6 +99,7 @@ export const me = (overrides: Partial<{ onboarding_completed: boolean }> = {}) =
   onboarding_completed: false,
   active_family_id: "f1",
   families: [{ id: "f1", name: "Семья Лидер", role: "owner" }],
+  bot_link: "https://t.me/kainem_bot",
   ...overrides,
 });
 

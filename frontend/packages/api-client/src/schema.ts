@@ -175,7 +175,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update Me */
+        patch: operations["update_me_v1_me_patch"];
         trace?: never;
     };
 }
@@ -292,11 +293,21 @@ export interface components {
         Me: {
             /** Active Family Id */
             active_family_id: string | null;
+            /** Bot Link */
+            bot_link: string;
             /** Families */
             families: components["schemas"]["FamilyOut"][];
             /** Onboarding Completed */
             onboarding_completed: boolean;
             user: components["schemas"]["UserOut"];
+        };
+        /** MeUpdate */
+        MeUpdate: {
+            /**
+             * Onboarding Completed
+             * @constant
+             */
+            onboarding_completed: true;
         };
         /** Pending */
         Pending: {
@@ -686,6 +697,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Me"];
+                };
+            };
+        };
+    };
+    update_me_v1_me_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-client-platform"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -104,7 +104,12 @@ def build_container(settings: Settings, *, llm_provider: LLMProvider | None = No
     )
     families = FamilyService(db, tracker, settings.app_version)
     registration = RegistrationService(
-        db, identity, families, bot_username=settings.bot_username, public_app_url=settings.public_app_url
+        db,
+        identity,
+        families,
+        tracker,
+        bot_username=settings.bot_username,
+        public_app_url=settings.public_app_url,
     )
     return Container(
         settings=settings,

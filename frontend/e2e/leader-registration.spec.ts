@@ -40,12 +40,27 @@ test("leader: welcome → Telegram → back in the PWA with a session that survi
   expect((await bind.json()).kind).toBe("family_registered");
 
   await expect(page).toHaveURL(/\/onboarding$/);
-  await expect(page.getByText("Семья Лидер")).toBeVisible();
+  await expect(page.getByRole("button", { name: "В семью" })).toBeVisible();
+  await page.screenshot({ path: "e2e/screens/C-onboarding.png", fullPage: true });
 
   // The refresh cookie (httpOnly, path /api/v1/auth) restores the session after a reload.
   await page.reload();
   await expect(page).toHaveURL(/\/onboarding$/);
-  await expect(page.getByText("Семья Лидер")).toBeVisible();
+
+  await page.getByRole("button", { name: "В семью" }).click();
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(page.getByRole("heading", { name: "Задачи" })).toBeVisible();
+  await page.screenshot({ path: "e2e/screens/D-home.png", fullPage: true });
+
+  // Re-entry after authorization goes straight to the main screen (SPEC flow step 4).
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/home$/);
+
+  await page.getByRole("button", { name: "Как пользоваться" }).click();
+  await expect(page.getByRole("heading", { name: "Как пользоваться" })).toBeVisible();
+  await page.screenshot({ path: "e2e/screens/help.png", fullPage: true });
+  await page.getByRole("button", { name: "Выйти" }).click();
+  await expect(page.getByRole("button", { name: "Зарегистрироваться" })).toBeVisible();
 });
 
 test("magic link from the bot message signs in once", async ({ page, request }) => {
@@ -56,7 +71,7 @@ test("magic link from the bot message signs in once", async ({ page, request }) 
 
   await page.goto(`/auth/tg?token=${magic_token}`);
   await expect(page).toHaveURL(/\/onboarding$/);
-  await expect(page.getByText("Семья Мама")).toBeVisible();
+  await expect(page.getByRole("button", { name: "В семью" })).toBeVisible();
 
   const other = await page.context().browser()!.newContext();
   const second = await other.newPage();

@@ -196,3 +196,76 @@ button.kn-card:focus-visible,
   flex-direction: column;
   gap: 20px;
 }
+
+/* home (screen D) */
+.kn-home-header {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.kn-home-header .kn-chip {
+  align-self: flex-start;
+}
+.kn-home-section {
+  margin-top: 36px;
+}
+.kn-home-section + .kn-home-section {
+  margin-top: 69px;
+}
+.kn-hint {
+  color: #6b6b6b;
+  font: 400 14px/19px var(--kn-font);
+}
+
+/* sheet (bottom dialog) */
+.kn-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 10;
+}
+.kn-sheet {
+  width: 100%;
+  max-width: var(--kn-frame-width);
+  background: var(--kn-color-bg);
+  border-radius: var(--kn-radius-card) var(--kn-radius-card) 0 0;
+  padding: 24px var(--kn-gutter) calc(env(safe-area-inset-bottom) + 24px);
+  font: 400 17px/23px var(--kn-font);
+}
+.kn-sheet h2 {
+  margin: 0 0 12px;
+  font: var(--kn-section-title);
+  letter-spacing: var(--kn-section-title-ls);
+}
+.kn-sheet ol {
+  margin: 0 0 20px;
+  padding-left: 22px;
+}
+.kn-sheet li + li {
+  margin-top: 8px;
+}
+
+/* text pages (help) */
+.kn-back {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--kn-color-link);
+  font: 400 17px/22px var(--kn-font);
+  cursor: pointer;
+}
+.kn-prose {
+  font: 400 17px/24px var(--kn-font);
+}
+.kn-prose h2 {
+  margin: 28px 0 8px;
+  font: var(--kn-section-title);
+  letter-spacing: var(--kn-section-title-ls);
+}
+.kn-prose p {
+  margin: 0;
+}

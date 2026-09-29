@@ -18,7 +18,7 @@ describe("session gate", () => {
       "GET /v1/me": () => ({ status: 200, body: me() }),
     });
     renderApp(makeServices(fetchImpl as typeof fetch));
-    expect(await screen.findByText(/Онбординг появится/)).toBeTruthy();
+    expect(await screen.findByText("В семью")).toBeTruthy();
     expect(calls.find((c) => c.path === "/v1/me")?.headers.get("Authorization")).toBe("Bearer at-1");
   });
 
@@ -28,7 +28,7 @@ describe("session gate", () => {
       "GET /v1/me": () => ({ status: 200, body: me({ onboarding_completed: true }) }),
     });
     renderApp(makeServices(fetchImpl as typeof fetch), "/home");
-    expect(await screen.findByText(/Главный экран появится/)).toBeTruthy();
+    expect(await screen.findByText("Задачи")).toBeTruthy();
   });
 
   it("shows a retry instead of logging out when the server is unreachable", async () => {
@@ -73,7 +73,7 @@ describe("welcome → Telegram login", () => {
     act(() => {
       pressed = true;
     });
-    expect(await screen.findByText(/Онбординг появится/)).toBeTruthy();
+    expect(await screen.findByText("В семью")).toBeTruthy();
     const exchange = calls.find((c) => c.path.endsWith("/exchange"))!;
     expect(exchange.body.verifier).toHaveLength(43); // the verifier, never sent at start
     expect(exchange.body.verifier).not.toBe(start.body.challenge);
@@ -95,7 +95,7 @@ describe("welcome → Telegram login", () => {
       "GET /v1/me": () => ({ status: 200, body: me() }),
     });
     renderApp(makeServices(fetchImpl as typeof fetch, storage));
-    expect(await screen.findByText(/Онбординг появится/)).toBeTruthy();
+    expect(await screen.findByText("В семью")).toBeTruthy();
     expect(await storage.get("auth.pending_handshake")).toBeUndefined();
   });
 
@@ -123,7 +123,7 @@ describe("magic link", () => {
       "GET /v1/me": () => ({ status: 200, body: me() }),
     });
     renderApp(makeServices(fetchImpl as typeof fetch), "/auth/tg?token=abcdefghijklmnopqrstuvwxyz");
-    expect(await screen.findByText(/Онбординг появится/)).toBeTruthy();
+    expect(await screen.findByText("В семью")).toBeTruthy();
     expect(calls.filter((c) => c.path === "/v1/auth/magic")).toHaveLength(1);
   });
 

@@ -1,10 +1,11 @@
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from planner.domain.families import Role
-from planner.entrypoints.api.deps import AuthDep, ContainerDep
+from planner.entrypoints.api.deps import AuthDep, ContainerDep, PlatformDep
 from planner.modules.identity.tables import UserRow
 
 router = APIRouter(prefix="/v1", tags=["me"])
@@ -26,12 +27,17 @@ class Me(BaseModel):
     onboarding_completed: bool
     active_family_id: uuid.UUID | None
     families: list[FamilyOut]
+    bot_link: str  # "open the bot" buttons (help screen, empty states)
 
 
-@router.get("/me", response_model=Me)
-async def get_me(principal: AuthDep, c: ContainerDep) -> Me:
+class MeUpdate(BaseModel):
+    # Only "done" is meaningful: onboarding can't be un-completed.
+    onboarding_completed: Literal[True]
+
+
+async def _me(c: ContainerDep, user_id: uuid.UUID) -> Me:
     async with c.db.sessions() as session:
-        user = await session.get(UserRow, principal.user_id)
+        user = await session.get(UserRow, user_id)
     if user is None:
         raise HTTPException(401, "user no longer exists")
     families = await c.families.my_families(user.id)
@@ -40,4 +46,17 @@ async def get_me(principal: AuthDep, c: ContainerDep) -> Me:
         onboarding_completed=user.onboarding_completed_at is not None,
         active_family_id=user.active_family_id,
         families=[FamilyOut(id=f.id, name=f.name, role=f.role) for f in families],
+        bot_link=f"https://t.me/{c.settings.bot_username}",
     )
+
+
+@router.get("/me", response_model=Me)
+async def get_me(principal: AuthDep, c: ContainerDep) -> Me:
+    return await _me(c, principal.user_id)
+
+
+@router.patch("/me", response_model=Me)
+async def update_me(body: MeUpdate, principal: AuthDep, c: ContainerDep, platform: PlatformDep) -> Me:
+    if body.onboarding_completed:
+        await c.registration.complete_onboarding(principal.user_id, platform, c.settings.app_version)
+    return await _me(c, principal.user_id)

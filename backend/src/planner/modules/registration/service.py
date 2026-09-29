@@ -7,13 +7,18 @@ issue a magic link back to the PWA. One transaction, serialized per user.
 
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Literal
 
-from planner.domain.families import INVITE_START_PREFIX, LOGIN_START_PREFIX, invite_deep_link
+from sqlalchemy import select
+
+from planner.domain.families import INVITE_START_PREFIX, LOGIN_START_PREFIX, Role, invite_deep_link
 from planner.domain.identity import HandshakeError
 from planner.infra.db import Database
-from planner.modules.analytics.catalog import Platform
+from planner.modules.analytics.catalog import OnboardingCompleted, Platform
+from planner.modules.analytics.tracker import EventContext, Tracker
 from planner.modules.families.service import FamilyService
+from planner.modules.families.tables import MemberRow
 from planner.modules.identity.service import IdentityService, TelegramProfile
 
 
@@ -37,6 +42,7 @@ class RegistrationService:
         db: Database,
         identity: IdentityService,
         families: FamilyService,
+        tracker: Tracker,
         *,
         bot_username: str,
         public_app_url: str,
@@ -44,6 +50,7 @@ class RegistrationService:
         self._db = db
         self._identity = identity
         self._families = families
+        self._tracker = tracker
         self._bot_username = bot_username
         self._app_url = public_app_url.rstrip("/")
 
@@ -83,4 +90,20 @@ class RegistrationService:
                 magic_token=token,
                 handshake_error=handshake_error,
                 is_new_user=is_new,
+            )
+
+    async def complete_onboarding(self, user_id: uuid.UUID, platform: Platform, app_version: str) -> None:
+        """Screen C "В семью". Idempotent: the event is emitted only the first time."""
+        async with self._db.transaction() as session:
+            user = await self._identity.lock_user(session, user_id)
+            if user.onboarding_completed_at is not None:
+                return
+            user.onboarding_completed_at = datetime.now(UTC)
+            role = await session.scalar(
+                select(MemberRow.role).where(MemberRow.user_id == user_id, MemberRow.family_id == user.active_family_id)
+            )
+            self._tracker.track(
+                session,
+                OnboardingCompleted(is_leader=role == Role.OWNER),
+                EventContext(platform, user_id, user.active_family_id, app_version=app_version),
             )
