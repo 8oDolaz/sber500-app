@@ -132,3 +132,61 @@ describe("family switcher (help)", () => {
     expect(screen.queryByText("Ваши семьи")).toBeNull();
   });
 });
+
+describe("main screen items", () => {
+  const tasks = [
+    { id: "t1", title: "Забрать посылку", due_date: "2026-09-26", due_at: null, assignee_hint: null, done: false },
+  ];
+  const events = {
+    timezone: "Europe/Moscow",
+    events: [
+      {
+        id: "e1",
+        title: "Танцы у Даши",
+        all_day: false,
+        starts_at: "2026-09-29T10:00:00Z",
+        ends_at: null,
+        start_date: null,
+        participants_hint: "Даша",
+      },
+    ],
+  };
+
+  it("shows tasks and events, fills the card to three rows, and the dot completes a task", async () => {
+    const { fetchImpl, calls } = signedIn(
+      {
+        "GET /v1/families/{id}/tasks": () => ({ status: 200, body: tasks }),
+        "GET /v1/families/{id}/events": () => ({ status: 200, body: events }),
+        "PATCH /v1/families/{id}/tasks/{task}": ({ body }) => ({ status: 200, body: { ...tasks[0], done: body.done } }),
+      },
+      true,
+    );
+    renderApp(makeServices(fetchImpl as typeof fetch), "/home");
+    expect(await screen.findByText("Забрать посылку")).toBeTruthy();
+    expect(screen.getByText("до сб 26.09")).toBeTruthy();
+    expect(await screen.findByText("Танцы у Даши")).toBeTruthy();
+    expect(screen.getByText("вт 29.09, 13:00 · Даша")).toBeTruthy();
+    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    expect(screen.queryByText(/Перешлите боту сообщение/)).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Отметить выполненной" }));
+    expect(screen.getByRole("button", { name: "Вернуть в работу" }).getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === "PATCH")).toMatchObject({ path: "/v1/families/f1/tasks/t1", body: { done: true } }),
+    );
+  });
+
+  it("reverts the optimistic tick when saving fails", async () => {
+    const { fetchImpl } = signedIn(
+      {
+        "GET /v1/families/{id}/tasks": () => ({ status: 200, body: tasks }),
+        "GET /v1/families/{id}/events": () => ({ status: 200, body: { timezone: "Europe/Moscow", events: [] } }),
+        "PATCH /v1/families/{id}/tasks/{task}": () => ({ status: 500 }),
+      },
+      true,
+    );
+    renderApp(makeServices(fetchImpl as typeof fetch), "/home");
+    await userEvent.click(await screen.findByRole("button", { name: "Отметить выполненной" }));
+    expect(await screen.findByRole("button", { name: "Отметить выполненной" })).toBeTruthy();
+  });
+});

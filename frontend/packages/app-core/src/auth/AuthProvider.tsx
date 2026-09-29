@@ -1,4 +1,5 @@
 import type { Me, Session } from "@kainem/api-client";
+import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useServices } from "../context";
 
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthApi | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { api, session } = useServices();
+  const queryClient = useQueryClient();
   const [state, setState] = useState<AuthState>({ status: "loading" });
 
   const loadMe = useCallback(async () => {
@@ -48,9 +50,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       session.onChange(() => {
-        if (!session.isAuthenticated()) setState({ status: "anonymous" });
+        if (!session.isAuthenticated()) {
+          queryClient.clear(); // shared devices: no family data survives a sign-out
+          setState({ status: "anonymous" });
+        }
       }),
-    [session],
+    [session, queryClient],
   );
 
   const value = useMemo<AuthApi>(

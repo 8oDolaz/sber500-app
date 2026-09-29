@@ -53,6 +53,8 @@ export const ru = {
       third: "я не помню какая третья категор", // TODO(design): real name of the third category
     },
     emptyHint: "Перешлите боту сообщение — задача или событие появится здесь",
+    markDone: "Отметить выполненной",
+    markUndone: "Вернуть в работу",
   },
   help: {
     back: "Назад",

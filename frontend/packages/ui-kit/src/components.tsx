@@ -105,7 +105,7 @@ export function ListRow({ children, meta, done, onToggle, toggleLabel }: ListRow
           {dot}
         </span>
       )}
-      <div className="kn-list-row__body">
+      <div className={cx("kn-list-row__body", done && "kn-list-row__body--done")}>
         {children}
         {meta ? <span className="kn-list-row__meta">{meta}</span> : null}
       </div>

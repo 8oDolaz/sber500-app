@@ -67,3 +67,43 @@ def already_member(family: str, magic_link: str) -> str:
 
 def invite_card(family: str, invite_link: str) -> str:
     return INVITE_CARD.format(family=escape(family), invite_link=escape(invite_link))
+
+
+# Capture (screens G → H)
+SAVE = "Сохранить"
+EDIT = "Изменить"
+CANCEL = "Отмена"
+SAVE_AS_TASK = "Сохранить как задачу"
+
+SAVED = "зафиксировал!"  # H — the bot's reply after confirmation
+CANCELLED = "Отменено"
+CARD_GONE = "Эта карточка устарела — перешлите сообщение ещё раз."
+ALREADY_SAVED = "Уже сохранено"
+REPLACED = "Заменено исправленной карточкой ↓"
+
+LLM_UNAVAILABLE = "Сейчас не получается разобрать сообщение."
+NOTHING_FOUND = "Не нашёл в сообщении задач или событий."
+SAVE_AS_IS = "Сохранить его как задачу?"
+
+REVISE_PROMPT = "Напишите, как правильно — например: «в пятницу в 18:00» или «это задача, срок до 26.09»."
+UNSUPPORTED = "Пока я понимаю только текст — перешлите сообщение с текстом или напишите его."
+TOO_FAST = "Слишком много сообщений подряд — подождите минуту."
+
+
+def draft_card(summary: str, family: str | None) -> str:
+    card = escape(summary)
+    return f"{card}\n<i>в «{escape(family)}»</i>" if family else card
+
+
+def saved(summary: str | None) -> str:
+    # Design H shows just "зафиксировал!"; the summary line keeps several saved cards distinguishable.
+    return f"{SAVED}\n<i>{escape(summary)}</i>" if summary else SAVED
+
+
+def cancelled(summary: str | None) -> str:
+    return f"{CANCELLED}: <s>{escape(summary)}</s>" if summary else CANCELLED
+
+
+def fallback(reason: str, summary: str) -> str:
+    lead = LLM_UNAVAILABLE if reason in ("llm_budget", "llm_timeout", "llm_error") else NOTHING_FOUND
+    return f"{lead} {SAVE_AS_IS}\n{escape(summary)}"

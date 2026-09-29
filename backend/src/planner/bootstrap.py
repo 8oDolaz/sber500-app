@@ -21,7 +21,9 @@ from planner.modules.analytics.tracker import (
     Tracker,
     outbox_handler,
 )
-from planner.modules.assistant.llm_gateway.fake import FakeProvider
+from planner.modules.assistant.capture import CaptureService
+from planner.modules.assistant.extraction import Extractor
+from planner.modules.assistant.llm_gateway.fake import FakeProvider, echo_task_responder
 from planner.modules.assistant.llm_gateway.gateway import LLMGateway
 from planner.modules.assistant.llm_gateway.models_health import ModelsHealth
 from planner.modules.assistant.llm_gateway.openai_compatible import OpenAICompatibleProvider
@@ -29,6 +31,7 @@ from planner.modules.assistant.llm_gateway.port import LLMProvider
 from planner.modules.families.service import FamilyService
 from planner.modules.identity.service import AuthConfig, IdentityService
 from planner.modules.notifications.bot_chats import BotChatService
+from planner.modules.planning.service import PlanningService
 from planner.modules.registration.service import RegistrationService
 from planner.settings import Settings
 
@@ -51,6 +54,8 @@ class Container:
     registration: RegistrationService
     bot_chats: BotChatService
     rate_limiter: RateLimiter
+    planning: PlanningService
+    capture: CaptureService
 
     async def aclose(self) -> None:
         await self.redis.aclose()
@@ -64,7 +69,7 @@ def build_llm_provider(settings: Settings) -> LLMProvider:
             api_key=settings.llm_api_key.get_secret_value(),
             timeout_s=settings.llm_timeout_s,
         )
-    return FakeProvider(models=sorted(settings.llm_models_in_use))
+    return FakeProvider(echo_task_responder, models=sorted(settings.llm_models_in_use))
 
 
 def build_container(settings: Settings, *, llm_provider: LLMProvider | None = None) -> Container:
@@ -103,6 +108,7 @@ def build_container(settings: Settings, *, llm_provider: LLMProvider | None = No
         ),
     )
     families = FamilyService(db, tracker, settings.app_version)
+    planning = PlanningService(db, tracker, settings.app_version)
     registration = RegistrationService(
         db,
         identity,
@@ -128,4 +134,8 @@ def build_container(settings: Settings, *, llm_provider: LLMProvider | None = No
         registration=registration,
         bot_chats=BotChatService(db, tracker, identity, settings.app_version),
         rate_limiter=RateLimiter(redis),
+        planning=planning,
+        capture=CaptureService(
+            db, tracker, Extractor(llm, settings.llm_model_extraction), planning, settings.app_version
+        ),
     )

@@ -179,6 +179,10 @@ button.kn-card:focus-visible,
   font: 400 16px/21px var(--kn-font);
   overflow-wrap: anywhere;
 }
+.kn-list-row__body--done {
+  color: #8a8a8a;
+  text-decoration: line-through;
+}
 .kn-list-row__meta {
   display: block;
   color: #6b6b6b;

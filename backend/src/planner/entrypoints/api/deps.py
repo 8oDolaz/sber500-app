@@ -1,3 +1,4 @@
+import uuid
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Request
@@ -39,6 +40,15 @@ async def require_principal(principal: Annotated[Principal | None, Depends(get_p
     return principal
 
 
+async def require_member(
+    family_id: uuid.UUID, principal: Annotated[Principal, Depends(require_principal)], c: ContainerDep
+) -> Principal:
+    """Family-scoped routes (/v1/families/{family_id}/…): the caller must be a member."""
+    if not await c.families.is_member(principal.user_id, family_id):
+        raise HTTPException(403, "not a member of this family")
+    return Principal(user_id=principal.user_id, family_id=family_id, session_chain_id=principal.session_chain_id)
+
+
 def parse_platform(value: str | None) -> Platform | None:
     try:
         platform = Platform(value or Platform.PWA)
@@ -69,6 +79,7 @@ def client_ip(request: Request) -> str:
 
 PrincipalDep = Annotated[Principal | None, Depends(get_principal)]
 AuthDep = Annotated[Principal, Depends(require_principal)]
+MemberDep = Annotated[Principal, Depends(require_member)]
 PlatformDep = Annotated[Platform, Depends(client_platform)]
 DisplayModeDep = Annotated[DisplayMode | None, Depends(display_mode)]
 ClientIpDep = Annotated[str, Depends(client_ip)]

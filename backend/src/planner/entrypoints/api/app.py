@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request, Response
 
 from planner.bootstrap import Container, build_container
 from planner.entrypoints.api.deps import parse_platform
-from planner.entrypoints.api.routers import analytics, auth, health, me, telegram, testing
+from planner.entrypoints.api.routers import analytics, auth, health, me, planning, telegram, testing
 from planner.entrypoints.bot.app import build_bot, build_dispatcher
 from planner.infra.telemetry import HTTP_LATENCY, HTTP_REQUESTS, configure_logging, configure_sentry
 from planner.modules.analytics.activity import EXCLUDED_API_PATHS
@@ -69,6 +69,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(telegram.router)
     app.include_router(auth.router)
     app.include_router(me.router)
+    app.include_router(planning.router)
     if settings.test_endpoints_enabled:
         app.include_router(testing.router)
     return app

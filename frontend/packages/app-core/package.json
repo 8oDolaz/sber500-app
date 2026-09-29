@@ -3,13 +3,19 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
-  "scripts": { "typecheck": "tsc -p ." },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
   "dependencies": {
     "@kainem/analytics": "workspace:*",
     "@kainem/api-client": "workspace:*",
     "@kainem/platform": "workspace:*",
     "@kainem/ui-kit": "workspace:*",
+    "@tanstack/react-query": "^5",
     "react-router": "^7.18.4"
   },
-  "peerDependencies": { "react": "^19.1.0", "react-dom": "^19.1.0" }
+  "peerDependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  }
 }

@@ -161,6 +161,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/families/{family_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Upcoming Events */
+        get: operations["upcoming_events_v1_families__family_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/families/{family_id}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Open Tasks */
+        get: operations["list_open_tasks_v1_families__family_id__tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/families/{family_id}/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Task
+         * @description Tap on the list dot: mark done (or undo).
+         */
+        patch: operations["update_task_v1_families__family_id__tasks__task_id__patch"];
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -234,6 +288,33 @@ export interface components {
             properties?: {
                 [key: string]: unknown;
             };
+        };
+        /** EventOut */
+        EventOut: {
+            /** All Day */
+            all_day: boolean;
+            /** Ends At */
+            ends_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Participants Hint */
+            participants_hint: string | null;
+            /** Start Date */
+            start_date: string | null;
+            /** Starts At */
+            starts_at: string | null;
+            /** Title */
+            title: string;
+        };
+        /** EventsOut */
+        EventsOut: {
+            /** Events */
+            events: components["schemas"]["EventOut"][];
+            /** Timezone */
+            timezone: string;
         };
         /** FamilyOut */
         FamilyOut: {
@@ -388,6 +469,29 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /** TaskOut */
+        TaskOut: {
+            /** Assignee Hint */
+            assignee_hint: string | null;
+            /** Done */
+            done: boolean;
+            /** Due At */
+            due_at: string | null;
+            /** Due Date */
+            due_date: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+        };
+        /** TaskUpdate */
+        TaskUpdate: {
+            /** Done */
+            done: boolean;
         };
         /** UserOut */
         UserOut: {
@@ -696,6 +800,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthFailure"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upcoming_events_v1_families__family_id__events_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path: {
+                family_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_open_tasks_v1_families__family_id__tasks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                family_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_task_v1_families__family_id__tasks__task_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-client-platform"?: string | null;
+            };
+            path: {
+                family_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskOut"];
                 };
             };
             /** @description Validation Error */

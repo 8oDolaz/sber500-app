@@ -92,6 +92,14 @@ class FamilyService:
             ).all()
         return [FamilySummary(id=r.id, name=r.name, role=Role(r.role)) for r in rows]
 
+    async def is_member(self, user_id: uuid.UUID, family_id: uuid.UUID) -> bool:
+        """Tenant check for every family-scoped request (ARCHITECTURE §5.3)."""
+        async with self._db.sessions() as session:
+            found = await session.scalar(
+                select(MemberRow.id).where(MemberRow.user_id == user_id, MemberRow.family_id == family_id)
+            )
+        return found is not None
+
     async def find_invite(self, session: AsyncSession, token: str) -> tuple[InviteRow | None, InviteStatus]:
         invite = await session.scalar(select(InviteRow).where(InviteRow.token == token).with_for_update())
         if invite is None:

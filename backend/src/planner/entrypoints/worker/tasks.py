@@ -82,3 +82,11 @@ async def purge_auth_artifacts(timestamp: int) -> None:
         await s.execute(text("DELETE FROM login_handshakes WHERE expires_at < now() - interval '2 days'"))
         await s.execute(text("DELETE FROM magic_tokens WHERE expires_at < now() - interval '2 days'"))
         await s.execute(text("DELETE FROM sessions WHERE expires_at < now() - interval '7 days'"))
+
+
+@job_app.periodic(cron="*/10 * * * *", periodic_id="expire_draft_actions")
+@job_app.task(queue="maintenance")
+async def expire_draft_actions(timestamp: int) -> None:
+    expired = await container().capture.expire()
+    if expired:
+        log.info("drafts.expired", count=expired)

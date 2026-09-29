@@ -45,3 +45,4 @@ frontend/e2e/screens/
 Thumbs.db
 *.swp
 *.log
+eval-report.json

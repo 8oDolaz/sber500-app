@@ -214,3 +214,75 @@ class InviteShared(EventProps):
     """Sent through the bot's inline "Поделиться" button. Native forwards can't be observed: a lower bound."""
 
     invite_id: UUID
+
+
+# planning (M4)
+CreatedVia = Literal["ui", "bot_draft", "bot_raw"]
+
+
+@analytics_event("task_created", counts_as_active=True, owner="planning")
+class TaskCreated(EventProps):
+    task_id: UUID
+    created_via: CreatedVia
+    has_due: bool
+    has_assignee: bool
+
+
+@analytics_event("event_created", counts_as_active=True, owner="planning")
+class EventCreated(EventProps):
+    event_id: UUID
+    created_via: CreatedVia
+    all_day: bool
+
+
+@analytics_event("task_completed", counts_as_active=True, owner="planning")
+class TaskCompleted(EventProps):
+    task_id: UUID
+    created_via: CreatedVia
+
+
+# capture & draft actions (M4)
+CaptureSource = Literal["forwarded", "own"]
+DraftCommand = Literal["create_task", "create_event"]
+
+
+@analytics_event("capture_received", owner="assistant")
+class CaptureReceived(EventProps):
+    source: CaptureSource
+    content_type: Literal["text", "photo", "voice", "other"]
+
+
+@analytics_event("capture_failed", owner="assistant")
+class CaptureFailed(EventProps):
+    reason: Literal["llm_budget", "llm_timeout", "llm_error", "invalid_output", "no_items"]
+
+
+@analytics_event("draft_action_created", owner="assistant")
+class DraftActionCreated(EventProps):
+    draft_id: UUID
+    command: DraftCommand
+    source: CaptureSource
+    model: str | None  # None for the "save as-is" fallback (no LLM)
+
+
+@analytics_event("draft_action_confirmed", owner="assistant")
+class DraftActionConfirmed(EventProps):
+    draft_id: UUID
+    latency_s: int
+
+
+@analytics_event("draft_action_revised", owner="assistant")
+class DraftActionRevised(EventProps):
+    draft_id: UUID
+    latency_s: int
+
+
+@analytics_event("draft_action_cancelled", owner="assistant")
+class DraftActionCancelled(EventProps):
+    draft_id: UUID
+    latency_s: int
+
+
+@analytics_event("draft_action_expired", owner="assistant")
+class DraftActionExpired(EventProps):
+    draft_id: UUID

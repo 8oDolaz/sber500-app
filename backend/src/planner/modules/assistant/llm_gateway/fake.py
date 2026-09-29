@@ -1,5 +1,7 @@
 """Deterministic provider for tests, local dev and load tests (spends no budget)."""
 
+import json
+import re
 from collections.abc import Callable
 
 from planner.modules.assistant.llm_gateway.port import LLMError, LLMRequest, LLMResult
@@ -38,3 +40,15 @@ class FakeProvider:
 
     async def list_models(self) -> list[str]:
         return list(self._models) if self._models is not None else []
+
+
+_MESSAGE = re.compile(r"<message>\n(.*?)\n</message>", re.S)
+
+
+def echo_task_responder(request: LLMRequest) -> str:
+    """For local dev, e2e and load tests: the message's first line becomes one task."""
+    found = _MESSAGE.search(request.messages[-1].content if request.messages else "")
+    text = found.group(1).strip() if found else ""
+    if not text:
+        return json.dumps({"items": []})
+    return json.dumps({"items": [{"kind": "task", "title": text.splitlines()[0][:120]}]}, ensure_ascii=False)
