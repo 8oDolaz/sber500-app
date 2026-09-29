@@ -1,0 +1,26 @@
+{
+  "name": "@kainem/pwa",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p . && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@kainem/analytics": "workspace:*",
+    "@kainem/api-client": "workspace:*",
+    "@kainem/app-core": "workspace:*",
+    "@kainem/platform": "workspace:*",
+    "@kainem/ui-kit": "workspace:*",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@vitejs/plugin-react": "^4.7.0",
+    "vite-plugin-pwa": "^1.3.0",
+    "workbox-window": "^7.4.0"
+  }
+}

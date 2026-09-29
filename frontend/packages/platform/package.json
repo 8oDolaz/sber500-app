@@ -1,0 +1,8 @@
+{
+  "name": "@kainem/platform",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "typecheck": "tsc -p ." },
+  "dependencies": { "idb-keyval": "^6.2.1" }
+}

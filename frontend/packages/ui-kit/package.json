@@ -1,0 +1,9 @@
+{
+  "name": "@kainem/ui-kit",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "typecheck": "tsc -p ." },
+  "peerDependencies": { "react": "^19.1.0" },
+  "dependencies": { "@fontsource-variable/inter": "^5.2.0" }
+}

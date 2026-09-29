@@ -1,0 +1,47 @@
+# Local development: Postgres + Redis. Apps run on the host (`make dev`), or use the `full` profile.
+name: kainem
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: kainem
+      POSTGRES_PASSWORD: kainem
+      POSTGRES_DB: kainem
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kainem"]
+      interval: 2s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 30
+
+  api:
+    profiles: [full]
+    build: {context: ../backend}
+    env_file: [../backend/.env]
+    environment: &backend-env
+      DATABASE_URL: postgresql+asyncpg://kainem:kainem@postgres:5432/kainem
+      REDIS_URL: redis://redis:6379/0
+    command: ["sh", "-c", "alembic upgrade head && uvicorn planner.entrypoints.api.app:create_app --factory --host 0.0.0.0 --port 8000"]
+    depends_on: {postgres: {condition: service_healthy}, redis: {condition: service_healthy}}
+  worker:
+    profiles: [full]
+    build: {context: ../backend}
+    env_file: [../backend/.env]
+    environment: *backend-env
+    command: ["python", "-m", "planner.entrypoints.worker"]
+    depends_on: [api]
+  web:
+    profiles: [full]
+    build: {context: ../frontend}
+    ports: ["${WEB_PORT:-8080}:80"]
+    depends_on: [api]
+
+volumes:
+  pgdata:

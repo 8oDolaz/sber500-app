@@ -1,0 +1,49 @@
+/* kainem design tokens — values from the Figma handoff (SPEC.md §2), px at a 402-wide frame. */
+:root {
+  --kn-color-bg: #ffffff;
+  --kn-color-text: #000000;
+  --kn-color-surface: #f6f6f6; /* cards, chip */
+  --kn-color-control: #d9d9d9; /* buttons, bot bubble, list dots */
+  --kn-color-control-pressed: #c4c4c4; /* not in design: standard pressed state */
+  --kn-color-bubble-out: #b3b6de;
+  --kn-color-link: #007fe6; /* Figma has #007FE6 and #0077D8; unified (TODO(design): confirm) */
+  --kn-color-divider: #d6d6d6;
+  --kn-color-focus: #007fe6;
+
+  --kn-font: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter Variable", Inter, system-ui,
+    sans-serif;
+  --kn-weight-regular: 400;
+  --kn-weight-semibold: 590;
+
+  /* type scale: size / line-height / letter-spacing */
+  --kn-logo-xl: 590 54.357px/72.476px var(--kn-font);
+  --kn-logo-xl-ls: -0.8335px;
+  --kn-logo-m: 590 38.781px/51.708px var(--kn-font);
+  --kn-logo-m-ls: -0.5946px;
+  --kn-welcome: 400 28.295px/1.2 var(--kn-font);
+  --kn-welcome-ls: -0.4339px;
+  --kn-card-text: 400 23.547px/1.2 var(--kn-font);
+  --kn-card-text-ls: -0.361px;
+  --kn-button: 400 19.885px/1.2 var(--kn-font);
+  --kn-button-ls: -0.3921px;
+  --kn-section-title: 590 21.398px/28.531px var(--kn-font);
+  --kn-section-title-ls: -0.3281px;
+  --kn-chip: 590 12.839px/17.119px var(--kn-font);
+  --kn-chip-ls: -0.1969px;
+
+  --kn-radius-card: 28px;
+  --kn-radius-card-home: 26px;
+  --kn-radius-button: 18px;
+  --kn-radius-bubble: 14px;
+  --kn-radius-chip: 15.5px;
+
+  --kn-frame-width: 402px;
+  --kn-gutter: 26px;
+  --kn-gutter-home: 16px;
+}
+
+@supports not (font-variation-settings: normal) {
+  :root {
+    --kn-weight-semibold: 600;
+  }
+}
