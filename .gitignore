@@ -46,3 +46,6 @@ Thumbs.db
 *.swp
 *.log
 eval-report.json
+infra/.env.prod
+backend/lt-*.csv
+backend/lt-*.html

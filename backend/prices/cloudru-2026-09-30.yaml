@@ -1,0 +1,19 @@
+# Cloud.ru Foundation Models catalog, ₽ per 1M tokens, checked 2026-09-30 (VAT not stated).
+# Fallback for llm_usage when the proxy doesn't report a cost:
+#   python -m planner.cli prices-sync --file prices/cloudru-2026-09-30.yaml
+# Model names must match what the accelerator proxy calls them (GET /v1/models).
+- model: deepseek-v4-flash
+  input_per_million: 43.2978
+  output_per_million: 86.5834
+- model: deepseek-v4.1-flash
+  input_per_million: 64.94
+  output_per_million: 194.81
+- model: deepseek-v4-pro
+  input_per_million: 183
+  output_per_million: 732
+- model: gigachat-3-pro
+  input_per_million: 73.03
+  output_per_million: 176.39
+- model: gigachat3.5-432b-a28b-reasoning
+  input_per_million: 96.22
+  output_per_million: 288.6

@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     magic_link_ttl_s: int = 10 * 60
     # Browser path of the auth API (behind the /api reverse-proxy prefix): the refresh cookie is scoped to it.
     refresh_cookie_path: str = "/api/v1/auth"
+    # Per-IP limits on the login endpoints (per minute). Raised only for single-IP load tests.
+    login_start_rate_per_min: int = 20
+    login_poll_rate_per_min: int = 120
+    magic_link_rate_per_min: int = 30
     # Test-only endpoints (bind a handshake without Telegram). Never enabled in staging/production.
     enable_test_endpoints: bool = False
 

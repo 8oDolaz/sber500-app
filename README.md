@@ -4,7 +4,12 @@ _Sber 500 x Disrupt app repo._
 
 A family assistant. People use it through a **PWA** (web app) and a **Telegram bot**. The bot registers the family, sends invite links, and turns forwarded messages into tasks and events.
 
-Architecture decisions: [`docs/adr/`](docs/adr).
+| Document | What's in it |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | The system as built: components, deployment, code structure, key flows, data model, analytics, security (with diagrams) |
+| [`docs/load-test.md`](docs/load-test.md) | Load test: 10 RPS with 0 errors (5× also held), how to run it |
+| [`docs/llm-cost-per-dau.md`](docs/llm-cost-per-dau.md) | LLM cost per daily active user: model, prices, scenarios, how it's measured |
+| [`docs/adr/`](docs/adr) | Architecture decisions |
 
 ## Repository layout
 
@@ -27,7 +32,12 @@ frontend/    pnpm workspace · React 19 · Vite 6 · vite-plugin-pwa
   packages/api-client/        typed client generated from contracts/openapi.json
   packages/app-core/          screens and routing (platform-agnostic)
 contracts/openapi.json        exported from FastAPI; source for the TS client
-infra/compose.yml             local Postgres + Redis (+ `full` profile for all services)
+backend/loadtest/             Locust load test
+backend/prices/               LLM price lists (fallback for the cost ledger)
+infra/compose.yml             local Postgres + Redis (+ `full` profile: all services, Prometheus, Grafana)
+infra/compose.loadtest.yml    load-test override (test endpoints on, per-IP limits raised)
+infra/compose.prod.yml        single-VM deployment behind Caddy (TLS)
+infra/grafana/, prometheus/   dashboards, data sources, alert rules
 docs/adr/                     architecture decision records
 ```
 
@@ -47,7 +57,7 @@ cd frontend && pnpm install && cd ..
 make web        # http://localhost:5173  (/_kit shows the UI kit in dev)
 ```
 
-Everything in containers: `docker compose -f infra/compose.yml --profile full up --build`, then open http://localhost:8080 (or set `WEB_PORT`).
+Everything in containers: `docker compose -f infra/compose.yml --profile full up --build`, then open http://localhost:8080 (or set `WEB_PORT`). This also starts Prometheus (http://localhost:9090) and Grafana (http://localhost:3000, admin/admin) with the kainem dashboards.
 
 ## Tests and checks
 
@@ -83,12 +93,31 @@ Locally the bot runs in long polling mode (`make bot`). On a server it runs as a
 
 ## Observability
 
-- **Metrics** (Prometheus): `/metrics` on the API, `:9101/metrics` on the worker.
-  - `http_requests_total{route,status}`
-  - `bot_updates_total{update_type,status}`
-  - `llm_calls_total`, `llm_spend_rub_total`
-  - `outbox_lag_seconds`
-  - `analytics_events_rejected_total{reason}`
+- **Dashboards** (Grafana, provisioned from `infra/grafana/`):
+  - "kainem — technical" (Prometheus): request rate, **5xx error rate**, latency percentiles, Telegram updates, LLM calls and spend, outbox lag, analytics rejects.
+  - "kainem — product" (Postgres views `metrics_*`): **DAU**/WAU/MAU by platform, new users by source, new families, registration and invite funnels, AI confirm rate, **LLM ₽/day and ₽ per DAU**, retention, family activation.
+  - Every view excludes test and load-test accounts and the fake LLM.
+- **Alerts** (`infra/prometheus/alerts.yml`): 5xx above 2%, p95 latency above 1 s, failing bot updates, failing LLM calls, exhausted LLM budget, outbox lag, analytics rejects.
+- **Metrics** (Prometheus): `/metrics` on the API (not exposed through nginx), `:9101/metrics` on the worker.
 - **Logs:** structured JSON (structlog), with `x-request-id` propagated.
 - **Errors:** Sentry, when `SENTRY_DSN` is set.
-- **Product analytics:** the `analytics_events` table (partitioned by month), `user_activity_daily` for DAU (definition: [ADR 0003](docs/adr/0003-active-user.md)), and `llm_usage`.
+- **LLM cost:** `python -m planner.cli cost-report --days 7` prints ₽ per DAU from the ledger. Details are in [`docs/llm-cost-per-dau.md`](docs/llm-cost-per-dau.md).
+
+## Load test
+
+Locust scenarios in `backend/loadtest/`, run against the full stack with `infra/compose.loadtest.yml`. Results and commands are in [`docs/load-test.md`](docs/load-test.md).
+
+## Deploy (single VM)
+
+For a VM in a Russian cloud (152-FZ):
+
+```bash
+cp infra/.env.prod.example infra/.env.prod        # fill in the secrets; the file is gitignored
+docker compose -f infra/compose.prod.yml --env-file infra/.env.prod up -d --build
+docker compose -f infra/compose.prod.yml --env-file infra/.env.prod exec api python -m planner.cli set-webhook
+docker compose -f infra/compose.prod.yml --env-file infra/.env.prod exec api python -m planner.cli check-models
+```
+
+- **TLS:** Caddy terminates it for `DOMAIN` (automatic certificates) and is the only public service. Grafana and Prometheus listen on `127.0.0.1`; reach them through an SSH tunnel.
+- **Dashboard access:** create the read-only role once with `infra/postgres/grafana-reader.sql`.
+- **LLM price fallback:** load the catalog prices once with `python -m planner.cli prices-sync --file prices/cloudru-2026-09-30.yaml`.

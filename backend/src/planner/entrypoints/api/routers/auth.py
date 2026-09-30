@@ -78,7 +78,7 @@ def _failure(exc: AuthError) -> HTTPException:
 @router.post("/tg-handshake", status_code=status.HTTP_201_CREATED, response_model=HandshakeStarted)
 async def start_handshake(body: HandshakeStart, c: ContainerDep, platform: PlatformDep, ip: ClientIpDep):
     """Step 1: the PWA gets a nonce and opens `t.me/<bot>?start=login_<nonce>`."""
-    if not await c.rate_limiter.hit(f"hs-start:{ip}", 20):
+    if not await c.rate_limiter.hit(f"hs-start:{ip}", c.settings.login_start_rate_per_min):
         raise HTTPException(429, "too many login attempts")
     started = await c.identity.start_handshake(
         challenge=body.challenge, platform=platform, anonymous_id=body.anonymous_id, utm=body.utm
@@ -98,7 +98,7 @@ async def start_handshake(body: HandshakeStart, c: ContainerDep, platform: Platf
 )
 async def exchange_handshake(nonce: str, body: HandshakeExchange, c: ContainerDep, response: Response, ip: ClientIpDep):
     """Step 2 (polled): 202 until the user presses Start in the bot, then a session, exactly once."""
-    if not await c.rate_limiter.hit(f"hs-exchange:{ip}", 120):
+    if not await c.rate_limiter.hit(f"hs-exchange:{ip}", c.settings.login_poll_rate_per_min):
         raise HTTPException(429, "polling too fast")
     try:
         tokens = await c.identity.exchange_handshake(nonce, body.verifier)
@@ -114,7 +114,7 @@ async def redeem_magic_link(
     body: MagicRedeem, c: ContainerDep, platform: PlatformDep, response: Response, ip: ClientIpDep
 ):
     """The single-use link from the bot message ("Вот пространство семьи — <link>")."""
-    if not await c.rate_limiter.hit(f"magic:{ip}", 30):
+    if not await c.rate_limiter.hit(f"magic:{ip}", c.settings.magic_link_rate_per_min):
         raise HTTPException(429, "too many attempts")
     try:
         tokens = await c.identity.redeem_magic_token(body.token, platform=platform, anonymous_id=body.anonymous_id)

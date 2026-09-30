@@ -45,6 +45,56 @@ async def check_models() -> None:
         raise SystemExit(1)
 
 
+async def cost_report(days: int) -> None:
+    """Actual LLM spend vs. DAU from the ledger (views metrics_cost_per_dau / metrics_llm_cost)."""
+    from sqlalchemy import text
+
+    from planner.infra.db import Database
+
+    db = Database(get_settings().database_url)
+    try:
+        async with db.sessions() as s:
+            daily = (
+                await s.execute(
+                    text(
+                        "SELECT day, dau, llm_calls, cost_rub, rub_per_dau FROM metrics_cost_per_dau "
+                        "WHERE day > current_date - CAST(:days AS integer) ORDER BY day"
+                    ),
+                    {"days": days},
+                )
+            ).all()
+            by_model = (
+                await s.execute(
+                    text(
+                        "SELECT feature, model, sum(calls) calls, sum(unpriced_calls) unpriced, "
+                        "sum(input_tokens) tin, sum(output_tokens) tout, sum(cost_rub) rub "
+                        "FROM metrics_llm_cost WHERE day > current_date - CAST(:days AS integer) "
+                        "GROUP BY 1, 2 ORDER BY rub DESC"
+                    ),
+                    {"days": days},
+                )
+            ).all()
+    finally:
+        await db.dispose()
+
+    print(f"{'day':<12}{'DAU':>6}{'calls':>8}{'₽':>12}{'₽/DAU':>10}")
+    for r in daily:
+        print(f"{r.day!s:<12}{r.dau:>6}{r.llm_calls:>8}{r.cost_rub:>12}{r.rub_per_dau or '-':>10}")
+    total_rub = sum(r.cost_rub for r in daily)
+    dau_days = sum(r.dau for r in daily)
+    print(
+        f"\ntotal: {total_rub} ₽ over {dau_days} DAU-days → {(total_rub / dau_days) if dau_days else '-'} ₽ per DAU-day"
+    )
+    header = f"{'feature':<12}{'model':<24}{'calls':>7}{'unpriced':>9}{'in tok/call':>12}{'out tok/call':>13}"
+    print(f"\n{header}{'₽/call':>10}")
+    for r in by_model:
+        n = r.calls or 1
+        print(
+            f"{r.feature:<12}{r.model:<24}{r.calls:>7}{r.unpriced:>9}{r.tin // n:>12}{r.tout // n:>13}"
+            f"{round(r.rub / n, 4):>10}"
+        )
+
+
 async def set_webhook() -> None:
     from planner.entrypoints.bot.app import build_bot
 
@@ -73,6 +123,8 @@ def main() -> None:
     p.add_argument("--file", type=Path)
     sub.add_parser("check-models", help="verify configured LLM models exist on the proxy")
     sub.add_parser("set-webhook", help="point the Telegram bot webhook at PUBLIC_APP_URL")
+    p = sub.add_parser("cost-report", help="LLM ₽ per DAU from the ledger for the last N days")
+    p.add_argument("--days", type=int, default=7)
     args = parser.parse_args()
 
     match args.cmd:
@@ -84,6 +136,8 @@ def main() -> None:
             asyncio.run(check_models())
         case "set-webhook":
             asyncio.run(set_webhook())
+        case "cost-report":
+            asyncio.run(cost_report(args.days))
 
 
 if __name__ == "__main__":

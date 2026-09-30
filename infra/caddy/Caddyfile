@@ -1,0 +1,6 @@
+# TLS termination (automatic Let's Encrypt certificates) in front of the PWA/API nginx.
+# Caddy replaces any client-supplied X-Forwarded-For with the real peer address.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:80
+}
