@@ -6,6 +6,7 @@ A family assistant. People use it through a **PWA** (web app) and a **Telegram b
 
 | Document | What's in it |
 |---|---|
+| [`docs/deployment.md`](docs/deployment.md) | How to run locally with your bot and deploy to a server: files to create, credentials, commands, checks |
 | [`docs/architecture.md`](docs/architecture.md) | The system as built: components, deployment, code structure, key flows, data model, analytics, security (with diagrams) |
 | [`docs/load-test.md`](docs/load-test.md) | Load test: 10 RPS with 0 errors (5× also held), how to run it |
 | [`docs/llm-cost-per-dau.md`](docs/llm-cost-per-dau.md) | LLM cost per daily active user: model, prices, scenarios, how it's measured |
@@ -109,7 +110,7 @@ Locust scenarios in `backend/loadtest/`, run against the full stack with `infra/
 
 ## Deploy (single VM)
 
-For a VM in a Russian cloud (152-FZ):
+Full step-by-step guide: [`docs/deployment.md`](docs/deployment.md). In short, for a VM in a Russian cloud (152-FZ):
 
 ```bash
 cp infra/.env.prod.example infra/.env.prod        # fill in the secrets; the file is gitignored

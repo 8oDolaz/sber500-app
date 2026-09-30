@@ -38,6 +38,15 @@ services:
     environment: *backend-env
     command: ["python", "-m", "planner.entrypoints.worker"]
     depends_on: [api]
+  bot:
+    # Local only: long polling, so no public URL is needed. On a server the bot runs as a webhook in the API.
+    profiles: [full]
+    build: {context: ../backend}
+    env_file: [../backend/.env]
+    environment: *backend-env
+    command: ["python", "-m", "planner.entrypoints.bot"]
+    restart: unless-stopped
+    depends_on: [api]
   web:
     profiles: [full]
     build: {context: ../frontend}
