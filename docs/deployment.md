@@ -168,6 +168,7 @@ DC="docker compose -f infra/compose.prod.yml --env-file infra/.env.prod"
    ```bash
    $DC exec api python -m planner.cli check-models
    ```
+   To see a real answer, cost included, run `$DC exec api python -m planner.cli llm-ping "Привет"`. If the proxy times out during the TLS handshake, check for a VPN in TUN mode: route `shared1.multitool.works` directly.
 3. **Load LLM prices.** They are the fallback when the proxy doesn't report a cost:
    ```bash
    $DC exec api python -m planner.cli prices-sync --file prices/cloudru-2026-09-30.yaml

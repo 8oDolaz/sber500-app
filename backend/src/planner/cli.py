@@ -3,9 +3,15 @@
 import argparse
 import asyncio
 import json
+import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from planner.settings import get_settings
+
+if TYPE_CHECKING:
+    from planner.modules.assistant.llm_gateway.gateway import LLMGateway
+    from planner.modules.assistant.llm_gateway.port import LLMRequest
 
 
 def export_openapi(out: Path) -> None:
@@ -35,14 +41,77 @@ async def prices_sync(file: Path | None) -> None:
 
 async def check_models() -> None:
     from planner.bootstrap import build_llm_provider
+    from planner.modules.assistant.llm_gateway.port import LLMError
 
     s = get_settings()
-    available = set(await build_llm_provider(s).list_models())
+    try:
+        available = set(await build_llm_provider(s).list_models())
+    except LLMError as exc:
+        raise SystemExit(f"cannot list models at {s.llm_base_url}: {exc}") from exc
     print("available:", ", ".join(sorted(available)))
     missing = sorted(s.llm_models_in_use - available)
     print("missing configured models:", missing or "none")
     if missing:
         raise SystemExit(1)
+
+
+async def ping(llm: "LLMGateway", request: "LLMRequest") -> str:
+    """One request through the gateway (ledger, metrics, quota), formatted for a human."""
+    started = time.perf_counter()
+    result = await llm.complete(request, feature="ping")
+    latency_ms = int((time.perf_counter() - started) * 1000)
+    cost = f"{result.reported_cost} ₽" if result.reported_cost is not None else "not reported"
+    return (
+        f"{result.text}\n\n"
+        f"model: {result.model} · {latency_ms} ms\n"
+        f"tokens: in {result.input_tokens} (cached {result.cached_input_tokens}) · out {result.output_tokens}\n"
+        f"cost: {cost}"
+    )
+
+
+async def ping_extract(llm: "LLMGateway", model: str, message: str, tz: str) -> str:
+    """The production extraction prompt on one message: validated items and the commands they become."""
+    from datetime import UTC, datetime
+
+    from planner.modules.assistant.extraction import ExtractionContext, Extractor, PlanningError, to_command
+
+    ctx = ExtractionContext(reference=datetime.now(UTC), timezone=tz, member_names=[])
+    result = await Extractor(llm, model).extract(message, ctx)
+    lines = [f"model: {result.model} · {len(result.items)} item(s)"]
+    for item in result.items:
+        lines.append(f"- {item.model_dump_json(by_alias=True)}")
+        try:
+            lines.append(f"  → {to_command(item, ctx)}")
+        except PlanningError as exc:
+            lines.append(f"  → skipped: {exc}")
+    return "\n".join(lines)
+
+
+async def llm_ping(text: str, *, model: str | None, system: str | None, json_mode: bool, extract: bool) -> None:
+    from planner.bootstrap import build_container
+    from planner.modules.assistant.extraction import InvalidOutput
+    from planner.modules.assistant.llm_gateway.port import ChatMessage, LLMError, LLMRequest
+
+    s = get_settings()
+    c = build_container(s)
+    try:
+        if extract:
+            out = await ping_extract(c.llm, model or s.llm_model_extraction, text, s.reporting_tz)
+        else:
+            system_msgs = [ChatMessage("system", system)] if system else []
+            request = LLMRequest(
+                model=model or s.llm_model_chat,
+                messages=[*system_msgs, ChatMessage("user", text)],
+                temperature=0.3,
+                max_tokens=800,
+                json_mode=json_mode,
+            )
+            out = await ping(c.llm, request)
+    except (LLMError, InvalidOutput) as exc:
+        raise SystemExit(f"{type(exc).__name__}: {exc}") from exc
+    finally:
+        await c.aclose()
+    print(f"provider: {c.llm.provider_name}\n{out}")
 
 
 async def cost_report(days: int) -> None:
@@ -122,6 +191,12 @@ def main() -> None:
     p = sub.add_parser("prices-sync", help="sync model_prices from the proxy /model/info or a YAML file")
     p.add_argument("--file", type=Path)
     sub.add_parser("check-models", help="verify configured LLM models exist on the proxy")
+    p = sub.add_parser("llm-ping", help="send one message to the configured LLM and print the reply, tokens and ₽")
+    p.add_argument("text")
+    p.add_argument("--model", help="default: LLM_MODEL_CHAT (LLM_MODEL_EXTRACTION with --extract)")
+    p.add_argument("--system", help="optional system prompt")
+    p.add_argument("--json", action="store_true", help="ask for a JSON object (response_format)")
+    p.add_argument("--extract", action="store_true", help="run the production extraction prompt instead")
     sub.add_parser("set-webhook", help="point the Telegram bot webhook at PUBLIC_APP_URL")
     p = sub.add_parser("cost-report", help="LLM ₽ per DAU from the ledger for the last N days")
     p.add_argument("--days", type=int, default=7)
@@ -134,6 +209,10 @@ def main() -> None:
             asyncio.run(prices_sync(args.file))
         case "check-models":
             asyncio.run(check_models())
+        case "llm-ping":
+            asyncio.run(
+                llm_ping(args.text, model=args.model, system=args.system, json_mode=args.json, extract=args.extract)
+            )
         case "set-webhook":
             asyncio.run(set_webhook())
         case "cost-report":
