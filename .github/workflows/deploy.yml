@@ -1,0 +1,145 @@
+name: Deploy
+
+# Deploys the whole stack (Caddy, web, api, worker, Postgres, Redis, Prometheus, Grafana) to a single
+# VM over SSH: rsync the sources, write infra/.env.prod from a secret, then run infra/deploy/deploy.sh
+# on the server (backup → build → up → migrations → webhook → smoke test).
+#
+# Configure once the VM exists (GitHub → Settings → Environments → "production"):
+#   variables: DEPLOY_HOST (IP or hostname), optional DEPLOY_USER (deploy), DEPLOY_PORT (22),
+#              DEPLOY_PATH (/opt/kainem), DEPLOY_KNOWN_HOSTS (output of `ssh-keyscan <host>`)
+#   secrets:   DEPLOY_SSH_KEY (private key of the deploy user), PROD_ENV_FILE (contents of infra/.env.prod)
+# Until DEPLOY_HOST, DEPLOY_SSH_KEY and PROD_ENV_FILE are set, pushes to main skip the deploy.
+# Full guide: docs/deployment.md §5.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Check deploy configuration
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          HAS_KEY: ${{ secrets.DEPLOY_SSH_KEY != '' }}
+          HAS_ENV: ${{ secrets.PROD_ENV_FILE != '' }}
+        run: |
+          missing=()
+          [ -n "$DEPLOY_HOST" ] || missing+=("variable DEPLOY_HOST")
+          [ "$HAS_KEY" = "true" ] || missing+=("secret DEPLOY_SSH_KEY")
+          [ "$HAS_ENV" = "true" ] || missing+=("secret PROD_ENV_FILE")
+          if [ ${#missing[@]} -eq 0 ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "configured=false" >> "$GITHUB_OUTPUT"
+          msg="Deploy not configured in the 'production' environment: ${missing[*]} (see docs/deployment.md §5)"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "::error::$msg"
+            exit 1
+          fi
+          echo "::notice::$msg. Skipping."
+
+  deploy:
+    name: Deploy to production
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ steps.config.outputs.app_url }}
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER || 'deploy' }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/kainem' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # for `git describe` (version from the latest tag)
+
+      - name: Read deploy configuration
+        id: config
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: |
+          app_url=$(printf '%s\n' "$PROD_ENV_FILE" | sed -n 's/^PUBLIC_APP_URL=//p' | tail -n1 | tr -d '"'"'"' \r')
+          if [ -z "$app_url" ]; then
+            echo "::error::PROD_ENV_FILE has no PUBLIC_APP_URL line"; exit 1
+          fi
+          version=$(git describe --tags --always --dirty=-dev 2>/dev/null || git rev-parse --short HEAD)
+          echo "app_url=$app_url" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Deploying $version to $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH ($app_url)"
+
+      - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          if [ -n "$DEPLOY_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          else
+            echo "::warning::DEPLOY_KNOWN_HOSTS is not set: trusting the host key on first contact (ssh-keyscan)"
+            ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          fi
+          cat > ~/.ssh/config <<EOF
+          Host target
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            Port $DEPLOY_PORT
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          EOF
+          ssh target 'echo "connected to $(hostname) as $(whoami)"; docker compose version'
+
+      - name: Sync sources to the server
+        run: |
+          ssh target "mkdir -p '$DEPLOY_PATH'"
+          rsync -az --delete \
+            --exclude '.git' --exclude 'node_modules' --exclude '.venv' --exclude 'dist' --exclude 'dev-dist' \
+            --exclude '__pycache__' --exclude '.pytest_cache' --exclude '.ruff_cache' \
+            --exclude '.env' --exclude '.env.prod' --exclude 'test-results' --exclude 'playwright-report' \
+            ./backend ./frontend ./infra \
+            "target:$DEPLOY_PATH/"
+
+      - name: Write infra/.env.prod
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: |
+          printf '%s\n' "$PROD_ENV_FILE" | ssh target "umask 077 && cat > '$DEPLOY_PATH/infra/.env.prod.tmp' && mv -f '$DEPLOY_PATH/infra/.env.prod.tmp' '$DEPLOY_PATH/infra/.env.prod'"
+
+      - name: Build, migrate and start on the server
+        run: |
+          ssh target "APP_VERSION='${{ steps.config.outputs.version }}' bash '$DEPLOY_PATH/infra/deploy/deploy.sh'"
+
+      - name: Smoke test from the outside
+        env:
+          APP_URL: ${{ steps.config.outputs.app_url }}
+        run: |
+          # Caddy fetches the TLS certificate on first start: allow about a minute.
+          body=$(curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$APP_URL/api/readyz")
+          echo "$body" | jq .
+          echo "$body" | jq -e '.ok == true' > /dev/null
+          if ! echo "$body" | jq -e '.llm_models.ok == true' > /dev/null; then
+            echo "::warning::A configured LLM model is missing on the proxy (see /api/readyz). The app runs, extraction degrades."
+          fi

@@ -57,7 +57,9 @@ frontend/                pnpm 9 workspace · Node 22 · React 19 · Vite 6 · Ty
   e2e/                   Playwright specs (real browser → Vite proxy → FastAPI → Postgres/Redis)
 contracts/openapi.json   exported from FastAPI; the contract between backend and frontend (checked in CI)
 infra/                   compose.yml (local), compose.loadtest.yml, compose.prod.yml (single VM behind Caddy),
-                         grafana/, prometheus/, nginx/, caddy/, postgres/grafana-reader.sql
+                         .env.prod.example (template for the PROD_ENV_FILE secret), deploy/ (bootstrap.sh once
+                         per VM, deploy.sh run by the Deploy workflow), grafana/, prometheus/, nginx/, caddy/,
+                         postgres/grafana-reader.sql
 docs/                    architecture, deployment, load test, LLM cost, adr/
 Makefile                 the canonical dev commands (run from the repo root)
 ```
@@ -103,6 +105,17 @@ default; `openai_compatible` uses the accelerator proxy and spends real budget.
 
 Run `make lint && make test` locally before pushing. `pytest -m eval` is excluded by default
 (`addopts = "-m 'not eval'"`): it calls the real LLM and spends money. Never add it to CI.
+
+## Deployment
+
+`.github/workflows/deploy.yml` deploys to one VM (Timeweb Cloud) over SSH: it rsyncs `backend/`,
+`frontend/` and `infra/`, writes `infra/.env.prod` from the `PROD_ENV_FILE` secret, and runs
+`infra/deploy/deploy.sh` on the server (pg_dump → `compose build --pull` → `up -d` → wait for the API
+→ `set-webhook`, `prices-sync`, `check-models`, Grafana role → `/api/readyz` smoke test). It runs on
+pushes to `main` and manually; without `DEPLOY_HOST`, `DEPLOY_SSH_KEY` and `PROD_ENV_FILE` in the
+GitHub `production` environment it skips. `deploy.sh` must stay idempotent: every step may run again
+on the next deploy. New production settings go into `infra/.env.prod.example` (the only committed
+`.env.*` file besides `backend/.env.example`). Guide: `docs/deployment.md` §5.
 
 ## Backend conventions
 
