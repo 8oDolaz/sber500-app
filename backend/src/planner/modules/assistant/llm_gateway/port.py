@@ -8,9 +8,18 @@ Role = Literal["system", "user", "assistant"]
 
 
 @dataclass(frozen=True, slots=True)
+class Image:
+    """An image for a vision model (VLM). Kept in memory only, never stored."""
+
+    data: bytes
+    mime_type: str  # image/jpeg, image/png, image/webp
+
+
+@dataclass(frozen=True, slots=True)
 class ChatMessage:
     role: Role
     content: str
+    images: tuple[Image, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

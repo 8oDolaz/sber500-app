@@ -1,12 +1,15 @@
 """Adapter for OpenAI-compatible endpoints — here the Sber500 accelerator LiteLLM proxy
 in front of Cloud.ru Foundation Models (GigaChat, DeepSeek, …)."""
 
+import base64
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
 import openai
 from openai import AsyncOpenAI
 
 from planner.modules.assistant.llm_gateway.port import (
+    ChatMessage,
     LLMBudgetExceeded,
     LLMError,
     LLMRateLimited,
@@ -28,7 +31,7 @@ class OpenAICompatibleProvider:
     async def complete(self, request: LLMRequest) -> LLMResult:
         kwargs: dict = {
             "model": request.model,
-            "messages": [{"role": m.role, "content": m.content} for m in request.messages],
+            "messages": [_message(m) for m in request.messages],
             "temperature": request.temperature,
         }
         if request.max_tokens is not None:
@@ -67,6 +70,17 @@ class OpenAICompatibleProvider:
         except openai.APIError as exc:
             raise LLMError(str(exc)) from exc
         return [m.id for m in page.data]
+
+
+def _message(m: ChatMessage) -> dict[str, Any]:
+    if not m.images:
+        return {"role": m.role, "content": m.content}
+    # OpenAI vision format: text part + images as base64 data URLs (the proxy can't fetch Telegram file URLs).
+    parts: list[dict[str, Any]] = [{"type": "text", "text": m.content}]
+    for img in m.images:
+        url = f"data:{img.mime_type};base64,{base64.b64encode(img.data).decode()}"
+        parts.append({"type": "image_url", "image_url": {"url": url}})
+    return {"role": m.role, "content": parts}
 
 
 def _parse_cost(value: str | None) -> Decimal | None:
