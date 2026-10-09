@@ -3,7 +3,7 @@
 #   APP_VERSION=<tag-or-sha> bash infra/deploy/deploy.sh
 #
 # Steps: back up Postgres → build images → start/replace containers (the API applies migrations on
-# start) → wait for the API to be healthy → register the Telegram webhook → load LLM prices →
+# start) → wait for the API to be healthy → check the bot reaches Telegram → load LLM prices →
 # make sure the Grafana read-only role exists → smoke test → prune old images.
 # Everything is idempotent: running it twice in a row is safe.
 set -euo pipefail
@@ -11,6 +11,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 ENV_FILE=infra/.env.prod
 [ -f "$ENV_FILE" ] || { echo "error: $ENV_FILE is missing (see docs/deployment.md §3)" >&2; exit 1; }
+[ -f infra/xray/config.json ] || { echo "error: infra/xray/config.json is missing (see docs/deployment.md §5.3)" >&2; exit 1; }
 
 export APP_VERSION="${APP_VERSION:-0.1.0}"
 DC=(docker compose -f infra/compose.prod.yml --env-file "$ENV_FILE")
@@ -60,8 +61,10 @@ if [ "${status:-}" != "healthy" ]; then
 fi
 echo "api is healthy"
 
-log "Pointing the Telegram webhook at PUBLIC_APP_URL"
-"${DC[@]}" exec -T api python -m planner.cli set-webhook
+log "Checking the bot reaches Telegram (it long-polls through xray, ADR 0004)"
+[ -n "$(env_value TELEGRAM_PROXY)" ] || echo "warning: TELEGRAM_PROXY is empty: the bot connects to Telegram directly" >&2
+"${DC[@]}" exec -T bot python -m planner.cli bot-check \
+  || echo "warning: the Bot API is unreachable; check the VLESS config: \$DC logs xray bot" >&2
 
 log "Loading LLM price fallback"
 "${DC[@]}" exec -T api python -m planner.cli prices-sync --file prices/cloudru-2026-09-30.yaml \

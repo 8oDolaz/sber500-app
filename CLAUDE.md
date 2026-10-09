@@ -42,7 +42,7 @@ backend/                 Python 3.13 · uv · FastAPI · aiogram 3 · SQLAlchemy
     bootstrap.py         composition root: builds the Container (the only module that imports everything)
     settings.py          pydantic-settings; every env var is declared here
     models.py            imports every table module so Base.metadata is complete
-    cli.py               ops commands: python -m planner.cli <export-openapi|prices-sync|check-models|set-webhook|cost-report>
+    cli.py               ops commands: python -m planner.cli <export-openapi|prices-sync|check-models|set-webhook|bot-check|cost-report>
   migrations/            Alembic (env.py, versions/YYYYMMDD_<rev>_<slug>.py)
   tests/{unit,integration,evals}
   loadtest/locustfile.py
@@ -109,10 +109,11 @@ Run `make lint && make test` locally before pushing. `pytest -m eval` is exclude
 ## Deployment
 
 `.github/workflows/deploy.yml` deploys to one VM (Timeweb Cloud) over SSH: it rsyncs `backend/`,
-`frontend/` and `infra/`, writes `infra/.env.prod` from the `PROD_ENV_FILE` secret, and runs
+`frontend/` and `infra/`, writes `infra/.env.prod` from the `PROD_ENV_FILE` secret and
+`infra/xray/config.json` from the `XRAY_CONFIG` secret, and runs
 `infra/deploy/deploy.sh` on the server (pg_dump → `compose build --pull` → `up -d` → wait for the API
-→ `set-webhook`, `prices-sync`, `check-models`, Grafana role → `/api/readyz` smoke test). It runs on
-pushes to `main` and manually; without `DEPLOY_HOST`, `DEPLOY_SSH_KEY` and `PROD_ENV_FILE` in the
+→ `bot-check`, `prices-sync`, `check-models`, Grafana role → `/api/readyz` smoke test). It runs on
+pushes to `main` and manually; without `DEPLOY_HOST`, `DEPLOY_SSH_KEY`, `PROD_ENV_FILE` and `XRAY_CONFIG` in the
 GitHub `production` environment it skips. `deploy.sh` must stay idempotent: every step may run again
 on the next deploy. New production settings go into `infra/.env.prod.example` (the only committed
 `.env.*` file besides `backend/.env.example`). Guide: `docs/deployment.md` §5.
@@ -169,8 +170,12 @@ in `*_m5_metrics_views.py`; every view must exclude test users, load-test traffi
 - `handlers.py` holds commands/callbacks/inline queries; `capture.py` handles everything else in a
   private chat (must stay registered after the command router).
 - **All bot copy lives in `texts.py`**, HTML parse mode: escape anything user-provided with `html.escape`.
-- Locally the bot long-polls (`make bot`). In production it runs as a webhook inside the API
-  (`/api/webhooks/telegram`, verified by `BOT_WEBHOOK_SECRET`). One bot token per environment.
+- The bot long-polls everywhere: locally with `make bot`, in production as the `bot` container. Telegram is
+  blocked in Russia, so production sends all Bot API calls through `TELEGRAM_PROXY` (`socks5://xray:1080`,
+  an Xray VLESS client whose config comes from the `XRAY_CONFIG` secret, ADR 0004). The webhook route
+  (`/api/webhooks/telegram`, `BOT_WEBHOOK_SECRET`) remains for hosts Telegram can reach. One bot token per
+  environment, and only one polling process per token. Create `Bot` objects only with `build_bot()`, so the
+  proxy and the `telegram_api_requests_total` metric apply.
 
 **Worker** (`entrypoints/worker/tasks.py`): Procrastinate periodic tasks decorated with
 `@job_app.periodic(cron=…, periodic_id=…)` + `@job_app.task(queue="maintenance")`, plus the
@@ -250,7 +255,7 @@ Frontend:
 - **Family scoping**: every family-owned query filters by `family_id`; family routes use `MemberDep`.
 - **Secrets at rest are hashed** (login tokens, magic links, refresh tokens: SHA-256). Access JWTs
   live 15 minutes in memory only; refresh cookies are httpOnly, rotate on use, and reuse revokes the chain.
-- **Never commit secrets.** `.env`, `infra/.env.prod`, keys and certificates are gitignored; the only
+- **Never commit secrets.** `.env`, `infra/.env.prod`, `infra/xray/config.json`, keys and certificates are gitignored; the only
   committed env files are `*.example`. `LLM_API_KEY` stays in env.
 - **Dashboards exclude test data**: `users.is_test`, `app_version = 'loadtest'`, the fake LLM.
 - Dotfolders are gitignored wholesale (`.*/`) except `.github/`. Do not rely on committing

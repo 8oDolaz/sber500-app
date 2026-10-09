@@ -79,7 +79,7 @@ Use a separate bot per environment (dev, staging, production). In @BotFather:
 3. `/setinlinefeedback` → `Enabled`, so shared invites are counted (`invite_shared`).
 4. `/setcommands` → `start - Начать` and `invite - Ссылка-приглашение в семью`.
 
-Locally the bot runs in long polling mode (`make bot`). On a server it runs as a webhook inside the API process: set `BOT_WEBHOOK_SECRET` and `PUBLIC_APP_URL`, then run `python -m planner.cli set-webhook`.
+The bot runs in long polling mode, locally (`make bot`) and in production. Telegram is blocked in Russia, so on the server it reaches the Bot API through an Xray (VLESS) proxy set in `TELEGRAM_PROXY` (ADR 0004). Where Telegram can reach the server, webhook mode still works: set `BOT_WEBHOOK_SECRET` and `PUBLIC_APP_URL`, then run `python -m planner.cli set-webhook`.
 
 ## LLM access (Sber500 accelerator)
 
@@ -115,10 +115,11 @@ Full step-by-step guide: [`docs/deployment.md`](docs/deployment.md) §5. In shor
 
 1. Prepare the VM once: `infra/deploy/bootstrap.sh` (Docker, `deploy` user, firewall).
 2. Fill `infra/.env.prod.example` and put it in the `PROD_ENV_FILE` secret of the GitHub `production`
-   environment, with `DEPLOY_HOST` and `DEPLOY_SSH_KEY`.
+   environment, with `DEPLOY_HOST` and `DEPLOY_SSH_KEY`. Put your VLESS client config (template:
+   `infra/xray/config.example.json`) in the `XRAY_CONFIG` secret.
 3. Actions → **Deploy** → *Run workflow*. Pushes to `main` deploy automatically once configured.
 
 The workflow rsyncs the sources and runs `infra/deploy/deploy.sh` on the server: database backup,
-`docker compose up -d --build`, migrations, Telegram webhook, LLM prices, Grafana role, smoke test.
+`docker compose up -d --build`, migrations, a Bot API check through the proxy, LLM prices, Grafana role, smoke test.
 
 - **TLS:** Caddy terminates it for `DOMAIN` (automatic certificates) and is the only public service. Grafana and Prometheus listen on `127.0.0.1`; reach them through an SSH tunnel.

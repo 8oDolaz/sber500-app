@@ -12,6 +12,8 @@ HTTP_LATENCY = Histogram("http_request_duration_seconds", "API latency", ["metho
 
 # --- Bot ---
 BOT_UPDATES = Counter("bot_updates_total", "Telegram updates processed", ["update_type", "status"])
+# Bot API calls, getUpdates included: status=network_error means Telegram (or the proxy) is unreachable.
+TELEGRAM_API_REQUESTS = Counter("telegram_api_requests_total", "Bot API calls", ["method", "status"])
 
 # --- LLM ---
 LLM_CALLS = Counter("llm_calls_total", "LLM provider calls", ["provider", "model", "feature", "status"])

@@ -2,11 +2,14 @@ import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from aiogram import BaseMiddleware
-from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
+from aiogram import BaseMiddleware, Bot
+from aiogram.client.session.middlewares.base import BaseRequestMiddleware, NextRequestMiddlewareType
+from aiogram.exceptions import TelegramForbiddenError, TelegramNetworkError, TelegramRetryAfter
+from aiogram.methods import Response, TelegramMethod
+from aiogram.methods.base import TelegramType
 from aiogram.types import CallbackQuery, Message, TelegramObject, Update
 
-from planner.infra.telemetry import BOT_UPDATES
+from planner.infra.telemetry import BOT_UPDATES, TELEGRAM_API_REQUESTS
 from planner.modules.analytics.activity import ActivityRecorder
 from planner.modules.analytics.catalog import Platform
 from planner.modules.notifications.bot_chats import BotChatService
@@ -28,6 +31,28 @@ class MetricsMiddleware(BaseMiddleware):
             raise
         BOT_UPDATES.labels(update_type=update_type, status="ok").inc()
         return result
+
+
+class RequestMetricsMiddleware(BaseRequestMiddleware):
+    """Session middleware: counts every Bot API call, so a dead proxy shows up as network errors."""
+
+    async def __call__(
+        self,
+        make_request: NextRequestMiddlewareType[TelegramType],
+        bot: Bot,
+        method: TelegramMethod[TelegramType],
+    ) -> Response[TelegramType]:
+        name = type(method).__name__
+        try:
+            response = await make_request(bot, method)
+        except TelegramNetworkError:
+            TELEGRAM_API_REQUESTS.labels(method=name, status="network_error").inc()
+            raise
+        except Exception:
+            TELEGRAM_API_REQUESTS.labels(method=name, status="api_error").inc()
+            raise
+        TELEGRAM_API_REQUESTS.labels(method=name, status="ok").inc()
+        return response
 
 
 class ActivityMiddleware(BaseMiddleware):
