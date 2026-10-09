@@ -1,0 +1,38 @@
+# Initial technical alerts (ARCHITECTURE §9.7). Product alerts (DAU drop, zero signups) live in Grafana.
+groups:
+  - name: kainem
+    rules:
+      - alert: ApiErrorRateHigh
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.02
+        for: 5m
+        labels: {severity: page}
+        annotations: {summary: "API 5xx rate above 2% for 5 minutes"}
+      - alert: ApiLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels: {severity: warn}
+        annotations: {summary: "API p95 latency above 1s"}
+      - alert: BotUpdatesFailing
+        expr: sum(rate(bot_updates_total{status="error"}[5m])) / sum(rate(bot_updates_total[5m])) > 0.05
+        for: 5m
+        labels: {severity: page}
+        annotations: {summary: "More than 5% of Telegram updates fail"}
+      - alert: LlmCallsFailing
+        expr: sum(rate(llm_calls_total{status!="ok"}[10m])) / sum(rate(llm_calls_total[10m])) > 0.2
+        for: 10m
+        labels: {severity: warn}
+        annotations: {summary: "More than 20% of LLM calls fail (budget, timeouts, proxy errors)"}
+      - alert: LlmBudgetExceeded
+        expr: increase(llm_calls_total{status="budget_exceeded"}[15m]) > 0
+        labels: {severity: page}
+        annotations: {summary: "The accelerator proxy reports the LLM budget is exhausted"}
+      - alert: OutboxLagging
+        expr: outbox_lag_seconds > 120
+        for: 5m
+        labels: {severity: warn}
+        annotations: {summary: "Outbox messages wait more than 2 minutes (worker down?)"}
+      - alert: AnalyticsRejectsSpike
+        expr: sum(rate(analytics_events_rejected_total{reason!="rate_limited"}[15m])) > 0.5
+        for: 15m
+        labels: {severity: warn}
+        annotations: {summary: "Client analytics events are being rejected (broken tracking?)"}

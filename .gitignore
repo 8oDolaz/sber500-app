@@ -1,0 +1,52 @@
+#  dot-folders
+# Tool caches, editor/agent settings, virtualenvs: never committed.
+.*/
+# Exception: CI workflows must be in the repo for GitHub Actions to run.
+!.github/
+
+# secrets & sensitive files
+.env
+.env.*
+*.env
+!.env.example
+!.env.prod.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+secrets/
+credentials*.json
+service-account*.json
+*.kubeconfig
+
+# local-only docs (planning, not shipped)
+/ARCHITECTURE.md
+/IMPLEMENTATION_PLAN.md
+/SPEC.md
+kainem-handoff.tgz
+
+# python
+__pycache__/
+*.py[cod]
+
+# node / frontend build
+node_modules/
+dist/
+dev-dist/
+*.tsbuildinfo
+test-results/
+playwright-report/
+frontend/e2e/screens/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+*.swp
+*.log
+eval-report.json
+infra/.env.prod
+backend/lt-*.csv
+backend/lt-*.html

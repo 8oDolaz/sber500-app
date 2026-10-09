@@ -1,0 +1,95 @@
+# Single-VM deployment (staging / MVP production), e.g. a Russian cloud VM (152-FZ).
+#   cp infra/.env.prod.example infra/.env.prod   # fill in secrets
+#   docker compose -f infra/compose.prod.yml --env-file infra/.env.prod up -d --build
+# Only Caddy is public (80/443). Grafana and Prometheus listen on 127.0.0.1: use an SSH tunnel.
+name: kainem
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kainem
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: kainem
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kainem"]
+      interval: 5s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 30
+
+  api:
+    build: {context: ../backend}
+    restart: unless-stopped
+    env_file: [.env.prod]
+    environment:
+      ENABLE_TEST_ENDPOINTS: "false"
+      APP_VERSION: ${APP_VERSION:-0.1.0}  # set by infra/deploy/deploy.sh: Sentry release, analytics app_version
+    command: ["sh", "-c", "alembic upgrade head && uvicorn planner.entrypoints.api.app:create_app --factory --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips '*'"]
+    depends_on: {postgres: {condition: service_healthy}, redis: {condition: service_healthy}}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 15s
+      retries: 5
+  worker:
+    build: {context: ../backend}
+    restart: unless-stopped
+    env_file: [.env.prod]
+    environment:
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+    command: ["python", "-m", "planner.entrypoints.worker"]
+    depends_on: {api: {condition: service_healthy}}
+  web:
+    build:
+      context: ../frontend
+      args: {VITE_APP_VERSION: "${APP_VERSION:-0.1.0}"}
+    restart: unless-stopped
+    volumes:
+      - ./nginx/real-ip.conf:/etc/nginx/conf.d/00-real-ip.conf:ro
+    depends_on: [api]
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [web]
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=30d"]
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - promdata:/prometheus
+    ports: ["127.0.0.1:9090:9090"]
+  grafana:
+    image: grafana/grafana:12.1.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
+      GRAFANA_PG_USER: ${GRAFANA_PG_USER:-grafana_reader}
+      GRAFANA_PG_PASSWORD: ${GRAFANA_PG_PASSWORD:?set GRAFANA_PG_PASSWORD}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports: ["127.0.0.1:3000:3000"]
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  promdata:
+  grafanadata:

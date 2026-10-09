@@ -1,0 +1,13 @@
+# Load-test override: docker compose -f compose.yml -f compose.loadtest.yml --profile full up -d
+# All traffic comes from one IP, so the per-IP login/analytics limits are raised; test endpoints are on.
+# Never use this override for a real environment.
+services:
+  api:
+    environment:
+      ENABLE_TEST_ENDPOINTS: "true"
+      LOGIN_START_RATE_PER_MIN: "10000"
+      LOGIN_POLL_RATE_PER_MIN: "10000"
+      MAGIC_LINK_RATE_PER_MIN: "10000"
+      ANALYTICS_PREAUTH_RATE_PER_MIN: "10000"
+      LLM_PROVIDER: fake
+      LOG_JSON: "true"
