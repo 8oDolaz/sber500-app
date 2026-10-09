@@ -183,6 +183,22 @@ async def set_webhook() -> None:
     print(f"webhook set to {url}")
 
 
+async def bot_check() -> None:
+    from planner.entrypoints.bot.app import build_bot
+
+    s = get_settings()
+    bot = build_bot(s)
+    if bot is None:
+        raise SystemExit("BOT_TOKEN is not set")
+    try:
+        me = await bot.get_me()
+        webhook = await bot.get_webhook_info()
+    finally:
+        await bot.session.close()
+    print(f"@{me.username} reachable via {s.telegram_proxy or 'a direct connection'}")
+    print(f"webhook: {webhook.url or 'none (long polling)'}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="planner")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -198,6 +214,7 @@ def main() -> None:
     p.add_argument("--json", action="store_true", help="ask for a JSON object (response_format)")
     p.add_argument("--extract", action="store_true", help="run the production extraction prompt instead")
     sub.add_parser("set-webhook", help="point the Telegram bot webhook at PUBLIC_APP_URL")
+    sub.add_parser("bot-check", help="call the Bot API (through TELEGRAM_PROXY if set) and show the webhook state")
     p = sub.add_parser("cost-report", help="LLM ₽ per DAU from the ledger for the last N days")
     p.add_argument("--days", type=int, default=7)
     args = parser.parse_args()
@@ -215,6 +232,8 @@ def main() -> None:
             )
         case "set-webhook":
             asyncio.run(set_webhook())
+        case "bot-check":
+            asyncio.run(bot_check())
         case "cost-report":
             asyncio.run(cost_report(args.days))
 

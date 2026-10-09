@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     bot_token: SecretStr = SecretStr("")
     bot_username: str = "kainem_bot"
     bot_webhook_secret: SecretStr = SecretStr("")
+    # Proxy for Bot API calls, e.g. socks5://xray:1080 (ADR 0004: Telegram is blocked from Russian servers)
+    telegram_proxy: str | None = None
 
     # Auth (ADR 0002: PWA login through the Telegram bot)
     jwt_secret: SecretStr = SecretStr("dev-only-change-me-dev-only-change-me")

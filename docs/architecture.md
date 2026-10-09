@@ -23,7 +23,9 @@ flowchart LR
     subgraph Server["kainem (one VM, Docker)"]
         CADDY["Caddy<br/>TLS"]
         WEB["nginx<br/>PWA files + /api proxy"]
-        API["API<br/>FastAPI + bot webhook<br/>(aiogram)"]
+        API["API<br/>FastAPI"]
+        BOT["Bot<br/>aiogram, long polling"]
+        XRAY["xray<br/>VLESS client"]
         WORKER["Worker<br/>outbox + scheduled jobs"]
         PG[("PostgreSQL<br/>data · analytics · job queue")]
         RD[("Redis<br/>rate limits · quotas · DAU dedupe")]
@@ -32,28 +34,31 @@ flowchart LR
     end
 
     TGAPI["Telegram Bot API"]
+    VPN["VLESS server<br/>(outside Russia)"]
     LLM["Sber500 LLM proxy<br/>(LiteLLM → Cloud.ru:<br/>DeepSeek, GigaChat)"]
 
     L & A --> PWA & TG
     PWA -- HTTPS --> CADDY --> WEB -- "/api" --> API
-    TG <--> TGAPI -- "webhook /api/webhooks/telegram" --> CADDY
-    API -- "replies" --> TGAPI
-    API --> PG & RD
+    TG <--> TGAPI
+    BOT -- "getUpdates, replies (SOCKS)" --> XRAY --> VPN --> TGAPI
+    API & BOT --> PG & RD
     API -- "extraction" --> LLM
     WORKER --> PG
-    PROM -- scrape --> API & WORKER
+    PROM -- scrape --> API & WORKER & BOT
     GRAF --> PROM & PG
 ```
 
 ## 2. Deployment
 
-`infra/compose.prod.yml` runs everything on one VM in a Russian cloud (152-FZ). Only Caddy is public; Grafana and Prometheus listen on `127.0.0.1` and are reached through an SSH tunnel.
+`infra/compose.prod.yml` runs everything on one VM in a Russian cloud (152-FZ). Only Caddy is public; Grafana and Prometheus listen on `127.0.0.1` and are reached through an SSH tunnel. Telegram is blocked in Russia, so the bot long-polls the Bot API through a VLESS proxy instead of receiving a webhook (ADR 0004).
 
 | Container | Role | Scales by |
 |---|---|---|
 | `caddy` | TLS (Let's Encrypt), the only public ports (80/443) | — |
 | `web` | nginx: PWA static files; `/api/*` → API. Blocks `/api/metrics`, sets the real client IP | stateless |
-| `api` | FastAPI (REST + Telegram webhook), 2 uvicorn workers; runs migrations on start | more workers or containers (stateless) |
+| `api` | FastAPI REST, 2 uvicorn workers; runs migrations on start. Also serves the Telegram webhook route, unused in production (ADR 0004) | more workers or containers (stateless) |
+| `bot` | aiogram in long-polling mode: commands, invites, capture; metrics on `:9102` | exactly one per bot token |
+| `xray` | Xray-core VLESS client: SOCKS proxy `xray:1080` for Bot API traffic only; config from the `XRAY_CONFIG` secret | — |
 | `worker` | Procrastinate jobs (spend check, price sync, draft expiry, partitions, cleanup) + the outbox dispatcher loop | one is enough; the dispatcher uses `SKIP LOCKED` |
 | `postgres` | All data, analytics tables, the job queue (pgvector image, ready for embeddings later) | managed Postgres later |
 | `redis` | Rate limits, per-family LLM quota, DAU dedupe, bot «Изменить» state | — |
@@ -225,7 +230,7 @@ flowchart LR
 - **DAU** follows ADR 0003: user-initiated actions only, reporting day in Europe/Moscow, one row per user, day and platform.
 - **LLM cost** comes from the ledger: one row per provider call with the proxy-reported cost. The analysis is in [`llm-cost-per-dau.md`](llm-cost-per-dau.md).
 - **Dashboards:** "kainem — technical" covers request rate, 5xx share, latency, bot, LLM, outbox and analytics rejects. "kainem — product" covers DAU/WAU/MAU, platforms, new users and families, the registration and invite funnels, AI confirm rate, ₽/day, ₽/DAU, retention and activation.
-- **Alerts:** 5xx above 2%, high latency, bot failures, LLM failures and budget exhaustion, outbox lag, analytics rejects. Spend alerts fire at 50% and 80% of the program budget.
+- **Alerts:** 5xx above 2%, high latency, bot failures, bot down or Telegram unreachable through the proxy, LLM failures and budget exhaustion, outbox lag, analytics rejects. Spend alerts fire at 50% and 80% of the program budget.
 
 ## 7. Security
 
@@ -237,7 +242,7 @@ flowchart LR
 - **Rate limits:**
   - Per IP on login and pre-login analytics; per user on bot captures.
   - The client IP is set by the edge (Caddy → nginx) and can't be spoofed with `X-Forwarded-For`.
-- **Webhook:** Telegram calls are verified by the secret token header.
+- **Webhook:** when used, Telegram calls are verified by the secret token header. Production long-polls instead (ADR 0004).
 - **LLM:**
   - Message text is fenced as data, and prompt injection is part of the eval set.
   - Nothing is written without user confirmation.
@@ -250,7 +255,7 @@ flowchart LR
 
 | | |
 |---|---|
-| Decisions | [`docs/adr/`](adr): 0001 LLM provider, 0002 PWA login through the bot, 0003 active user |
+| Decisions | [`docs/adr/`](adr): 0001 LLM provider, 0002 PWA login through the bot, 0003 active user, 0004 Telegram through a VLESS proxy |
 | Load test | [`docs/load-test.md`](load-test.md), `backend/loadtest/locustfile.py` |
 | LLM cost per DAU | [`docs/llm-cost-per-dau.md`](llm-cost-per-dau.md), `python -m planner.cli cost-report` |
 | Extraction quality | `backend/tests/evals/` (`pytest -m eval`) |

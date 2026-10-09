@@ -14,8 +14,9 @@ Everything runs in Docker. You never install Python or Node on the server.
 | A Linux VM (2 vCPU, 4 GB RAM is plenty) in a Russian cloud, e.g. Timeweb Cloud | — | yes (152-FZ) |
 | A domain with an A record pointing at the VM | — | yes |
 | A GitHub `production` environment with the deploy secrets (section 5.4) | — | yes, for the Deploy workflow |
+| A VLESS VPN subscription (Telegram is blocked in Russia, ADR 0004) | — | yes |
 
-**Use two different bots.** A bot token works either in polling mode (local) or with a webhook (server), not both at once. Setting a webhook stops local polling, and polling fails while a webhook is set.
+**Use two different bots.** Only one process can poll a bot token at a time. The server and your computer both poll (the server through a VPN proxy, ADR 0004), so with one shared token they would steal each other's updates.
 
 ## 2. Create the Telegram bot (once per bot)
 
@@ -47,6 +48,7 @@ None of these files are committed: they are gitignored because they hold secrets
 | `BOT_TOKEN` | BotFather, step 2.1 | dev bot token | prod bot token |
 | `BOT_USERNAME` | BotFather, without `@` | dev bot username | prod bot username |
 | `BOT_WEBHOOK_SECRET` | Any random string: `python3 -c "import secrets;print(secrets.token_urlsafe(32))"` | any value | **required**, random |
+| `TELEGRAM_PROXY` | Proxy for Bot API calls (ADR 0004) | empty (direct) | `socks5://xray:1080` |
 | `PUBLIC_APP_URL` | Where the app is opened in a browser | `http://localhost:<WEB_PORT>` | `https://<DOMAIN>` |
 | `JWT_SECRET` | Random: `python3 -c "import secrets;print(secrets.token_urlsafe(48))"` | can stay empty (dev default) | **required**: the API refuses to start without it |
 | `LLM_PROVIDER` | — | `fake` (free) or `openai_compatible` | `openai_compatible` |
@@ -178,6 +180,47 @@ Fill in every setting marked **required** in section 3. Check three things:
 The workflow writes this file to `/opt/kainem/infra/.env.prod` (mode 600) on every deploy, so the
 secret in GitHub is the source of truth: to change a setting, update the secret and redeploy.
 
+#### The Xray (VLESS) config
+
+Telegram is blocked in Russia: the server can neither call the Bot API nor receive webhooks reliably.
+The `bot` container therefore long-polls Telegram through the `xray` container, a VLESS client of your
+VPN servers (ADR 0004). Only the bot's traffic goes through it.
+
+```bash
+cp infra/xray/config.example.json /tmp/kainem.xray.json
+```
+
+Keep `inbounds`, `burstObservatory` and `routing` as they are. The template has one outbound per VPN
+server (`vless-1`, `vless-2`; add `vless-3`… or delete one, keeping the `vless-` prefix). Every minute
+Xray checks each server by opening `https://api.telegram.org` through it, and sends the bot's traffic
+through the fastest one that works (`leastPing`). If a server goes down, traffic moves to another one
+within about a minute. If all checks fail, Xray falls back to `vless-1`.
+
+Fill each outbound from one server link of your subscription,
+`vless://<id>@<address>:<port>?security=…&type=…&sni=…&pbk=…&sid=…&flow=…&fp=…`:
+
+| Link part | Config field |
+|---|---|
+| `<id>`, `<address>`, `<port>` | `vnext[0].users[0].id`, `vnext[0].address`, `vnext[0].port` |
+| `flow` | `users[0].flow` (remove the field if the link has none) |
+| `type` | `streamSettings.network` (`tcp`, `ws`, `grpc`, `xhttp`) |
+| `security=reality`: `sni`, `pbk`, `sid`, `fp` | `realitySettings.serverName`, `publicKey`, `shortId`, `fingerprint` |
+
+For `security=tls` replace `realitySettings` with `"tlsSettings": {"serverName": "<sni>"}`; for `ws`
+or `grpc` add `wsSettings` / `grpcSettings` with the link's `path` / `serviceName`. Many VPN clients
+(v2rayN, Hiddify, Nekoray) can also export a ready Xray JSON config for a server: keep its outbound
+and rename its tag to `vless-N`; take the other sections from the template.
+
+Check the file before using it (needs Docker):
+
+```bash
+docker run --rm -v /tmp/kainem.xray.json:/etc/xray/config.json:ro ghcr.io/xtls/xray-core:26.3.27 \
+  run -test -c /etc/xray/config.json     # prints "Configuration OK."
+```
+
+The file holds your VPN credentials: it goes only into the `XRAY_CONFIG` secret, and the workflow writes it to
+`/opt/kainem/infra/xray/config.json` on every deploy (gitignored).
+
 ### 5.4 Configure GitHub
 
 **Settings → Environments → New environment → `production`.** Optionally add yourself as a required
@@ -192,20 +235,24 @@ reviewer: every deploy then waits for your approval. Then add:
 | Variable | `DEPLOY_PATH` | optional, default `/opt/kainem` |
 | Secret | `DEPLOY_SSH_KEY` | contents of `~/.ssh/kainem_deploy` (the private key, all lines) |
 | Secret | `PROD_ENV_FILE` | contents of your filled-in `.env.prod` (the whole file) |
+| Secret | `XRAY_CONFIG` | contents of your filled-in Xray config (5.3) |
+
+Delete the local copies (`/tmp/kainem.env.prod`, `/tmp/kainem.xray.json`) once the first deploy is green.
 
 ### 5.5 Deploy
 
-- **Manually:** Actions → **Deploy** → *Run workflow* → pick the branch (`dev` for now, or a tag).
-- **Automatically:** every push to `main` deploys. The branch is empty today; merge `dev` into `main`
-  when you want "push to main = release".
+- **Automatically:** every push to `main` deploys.
+- **Manually:** Actions → **Deploy** → *Run workflow* → pick a branch or tag. GitHub only shows this
+  button once the workflow file is on the default branch (`main`), so merge `dev` into `main` first.
 
 What a run does, in order (`infra/deploy/deploy.sh`):
 
 1. `pg_dump` of the database into `/opt/kainem/backups/` (last 5 kept), skipped on the first deploy.
-2. `docker compose build --pull` for `api`, `worker` and `web` with `APP_VERSION` = the git tag or short SHA.
+2. `docker compose build --pull` for `api`, `worker`, `bot` and `web` with `APP_VERSION` = the git tag or short SHA.
 3. `docker compose up -d --remove-orphans`: the API applies migrations on start.
-4. Waits until the API container is healthy, then `set-webhook`, `prices-sync --file …`, `check-models`
-   (a missing model is a warning, not a failure), and creates or refreshes the `grafana_reader` role.
+4. Waits until the API container is healthy, then `bot-check` (calls the Bot API through the proxy;
+   a failure is a warning, see section 6), `prices-sync --file …`, `check-models` (a missing model is a
+   warning, not a failure), and creates or refreshes the `grafana_reader` role.
 5. `curl https://<DOMAIN>/api/readyz` from the server, then again from GitHub. Fails if `ok` is not `true`.
 
 A failed run leaves the previous containers running only if it failed before step 3; after that, fix
@@ -236,21 +283,23 @@ $DC exec api python -m planner.cli check-models
 - **Back up** the database daily, e.g. from cron: `$DC exec -T postgres pg_dump -U kainem kainem | gzip > backup-$(date +%F).sql.gz`. Keep copies off the VM. The pre-deploy dumps in `backups/` are a safety net, not a backup strategy.
 - **Restore:** `gunzip -c backups/<file>.sql.gz | $DC exec -T postgres psql -U kainem kainem` (stop `api` and `worker` first).
 - **Never** apply `infra/compose.loadtest.yml` on a server: it turns on test endpoints and removes rate limits.
-- Rotating `BOT_WEBHOOK_SECRET` or `JWT_SECRET`: update the `PROD_ENV_FILE` secret and redeploy; the webhook is re-registered on every deploy.
+- Rotating `JWT_SECRET`: update the `PROD_ENV_FILE` secret and redeploy.
+- Changing VPN servers: update the `XRAY_CONFIG` secret and redeploy. Then `$DC exec bot python -m planner.cli bot-check` should print the bot's username.
 
 ## 6. Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
 | The bot doesn't answer (local) | `BOT_TOKEN` is empty or wrong: check `logs bot`. Or a webhook is set for this token: run `set-webhook` only for the prod bot. The local bot removes the webhook on start. |
-| The bot doesn't answer (server) | Check that `set-webhook` ran with `PUBLIC_APP_URL=https://<DOMAIN>`, and that `BOT_WEBHOOK_SECRET` hasn't changed since (re-run `set-webhook` after changing it). |
+| The bot doesn't answer (server) | The proxy is down or misconfigured: `$DC logs xray bot` and `$DC exec bot python -m planner.cli bot-check`. Check `TELEGRAM_PROXY=socks5://xray:1080` in `PROD_ENV_FILE` and the VLESS fields in `XRAY_CONFIG`. Updates are kept by Telegram for 24 h and arrive once the proxy works. |
+| The bot answers only after minutes | A webhook is still set for the prod token, or the bot isn't polling through the proxy. The `bot` container deletes the webhook on start; `bot-check` shows `webhook: none (long polling)`. |
 | «Зарегистрироваться» opens the wrong bot | `BOT_USERNAME` doesn't match the token's bot. |
 | Links in bot messages don't open | `PUBLIC_APP_URL` doesn't match the address the app is served at (local: the `WEB_PORT` port; server: `https://<DOMAIN>`). |
 | API exits with "JWT_SECRET must be set" | Set `JWT_SECRET` in `infra/.env.prod`. |
 | `readyz` shows `llm_models.ok: false` | A configured model was removed from the proxy: pick one from `check-models` output. |
 | Caddy can't get a certificate | DNS doesn't point at the VM yet, or ports 80/443 are closed. |
 | «Поделиться» does nothing | Inline mode is off in BotFather (step 2.2). |
-| Deploy workflow is "skipped" | `DEPLOY_HOST`, `DEPLOY_SSH_KEY` or `PROD_ENV_FILE` is missing in the `production` environment (section 5.4). |
+| Deploy workflow is "skipped" | `DEPLOY_HOST`, `DEPLOY_SSH_KEY`, `PROD_ENV_FILE` or `XRAY_CONFIG` is missing in the `production` environment (section 5.4). |
 | Deploy fails at "Set up SSH" | Wrong `DEPLOY_SSH_KEY` (paste the whole private key), the public key isn't in `/home/deploy/.ssh/authorized_keys`, or `DEPLOY_KNOWN_HOSTS` is from another host. |
 | Deploy fails at "Smoke test" but `$DC ps` is healthy | DNS or 80/443 (Caddy has no certificate yet). Fix and re-run the workflow. |
 | `docker compose build` is slow or pulls fail on the VM | Docker Hub throttling. `bootstrap.sh` sets registry mirrors in `/etc/docker/daemon.json`; check they are still reachable. |

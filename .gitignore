@@ -18,6 +18,8 @@
 id_rsa*
 id_ed25519*
 secrets/
+# Xray client config: holds the VLESS credentials (template: infra/xray/config.example.json)
+/infra/xray/config.json
 credentials*.json
 service-account*.json
 *.kubeconfig

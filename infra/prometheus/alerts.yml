@@ -17,6 +17,18 @@ groups:
         for: 5m
         labels: {severity: page}
         annotations: {summary: "More than 5% of Telegram updates fail"}
+      - alert: BotDown
+        expr: up{job="bot"} == 0
+        for: 5m
+        labels: {severity: page}
+        annotations: {summary: "The bot container is down: nobody can sign in or forward messages"}
+      - alert: TelegramUnreachable
+        # The bot long-polls, so a healthy one succeeds every few seconds (ADR 0004). No successes means
+        # the VLESS proxy (xray) or Telegram is down. Check `docker compose logs xray bot`.
+        expr: sum(increase(telegram_api_requests_total{job="bot", status="ok"}[5m])) == 0
+        for: 5m
+        labels: {severity: page}
+        annotations: {summary: "The bot cannot reach the Telegram Bot API through the proxy"}
       - alert: LlmCallsFailing
         expr: sum(rate(llm_calls_total{status!="ok"}[10m])) / sum(rate(llm_calls_total[10m])) > 0.2
         for: 10m
