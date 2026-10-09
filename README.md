@@ -85,6 +85,7 @@ Locally the bot runs in long polling mode (`make bot`). On a server it runs as a
 
 - The proxy is OpenAI-compatible: `LLM_BASE_URL=https://shared1.multitool.works:4000/v1`, and `LLM_API_KEY` goes in env only, never in git.
 - Set `LLM_PROVIDER=openai_compatible` to use it. `python -m planner.cli check-models` verifies the configured models still exist.
+- `python -m planner.cli llm-ping "текст"` sends one message through the gateway and prints the reply, tokens and ₽. With `--extract` it runs the bot's extraction prompt on the text instead.
 - Every call is written to the `llm_usage` ledger, with its cost in micro-rubles.
 - A spend alert fires at 50% and 80% of `LLM_PROGRAM_BUDGET_RUB`. Each family also has a daily quota.
 - `python -m planner.cli prices-sync` refreshes `model_prices` from the proxy's `/model/info`, or from a YAML file with `--file`.
