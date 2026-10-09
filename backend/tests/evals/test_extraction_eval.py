@@ -1,9 +1,9 @@
 """Extraction quality and cost against the real accelerator proxy (spends budget!).
 
-    LLM_API_KEY=… EVAL_MODELS=deepseek-v4.1-flash,gigachat-3-pro uv run pytest -m eval -s
+    LLM_API_KEY=… EVAL_MODELS=qwen3-vl-30b-a3b-instruct,deepseek-v4.1-flash uv run pytest -m eval -s
 
 Prints accuracy, failures and ₽ per call for each model and writes eval-report.json.
-Used to choose LLM_MODEL_EXTRACTION (ADR 0001).
+Used to choose LLM_MODEL_EXTRACTION (ADR 0001; it must be a vision model, ADR 0005).
 """
 
 import contextlib

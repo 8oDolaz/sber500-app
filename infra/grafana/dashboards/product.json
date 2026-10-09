@@ -469,6 +469,41 @@
           "rawSql": "SELECT day::timestamp AS time, round(activated::numeric / nullif(families, 0), 3) AS activation_rate FROM metrics_activation WHERE $__timeFilter(day::timestamp) ORDER BY 1"
         }
       ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "LLM tokens per day: input / output",
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT day::timestamp AS time, sum(input_tokens) AS input, sum(output_tokens) AS output FROM metrics_llm_cost WHERE $__timeFilter(day::timestamp) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "description": "Tokens sent to and received from the LLM per day, all models, from the llm_usage ledger. Excludes the fake LLM, evals and test users. Input includes cached input tokens."
     }
   ],
   "editable": true

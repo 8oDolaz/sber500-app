@@ -86,7 +86,11 @@ NOTHING_FOUND = "Не нашёл в сообщении задач или соб�
 SAVE_AS_IS = "Сохранить его как задачу?"
 
 REVISE_PROMPT = "Напишите, как правильно — например: «в пятницу в 18:00» или «это задача, срок до 26.09»."
-UNSUPPORTED = "Пока я понимаю только текст — перешлите сообщение с текстом или напишите его."
+PHOTO_UNAVAILABLE = "Сейчас не получается разобрать фото — напишите текстом, что запланировать."
+PHOTO_NOTHING_FOUND = "Не нашёл на фото задач или событий — напишите текстом, что запланировать."
+PHOTO_DOWNLOAD_FAILED = "Не получилось загрузить фото — отправьте его ещё раз."
+
+UNSUPPORTED = "Я понимаю текст и фото, а голосовые, видео и файлы пока нет — перешлите сообщение с текстом или фото."
 TOO_FAST = "Слишком много сообщений подряд — подождите минуту."
 
 
@@ -104,6 +108,15 @@ def cancelled(summary: str | None) -> str:
     return f"{CANCELLED}: <s>{escape(summary)}</s>" if summary else CANCELLED
 
 
+def _llm_down(reason: str) -> bool:
+    return reason in ("llm_budget", "llm_timeout", "llm_error")
+
+
 def fallback(reason: str, summary: str) -> str:
-    lead = LLM_UNAVAILABLE if reason in ("llm_budget", "llm_timeout", "llm_error") else NOTHING_FOUND
+    lead = LLM_UNAVAILABLE if _llm_down(reason) else NOTHING_FOUND
     return f"{lead} {SAVE_AS_IS}\n{escape(summary)}"
+
+
+def photo_failed(reason: str) -> str:
+    """A photo without a caption that couldn't be turned into drafts: there is no text to save as-is."""
+    return PHOTO_UNAVAILABLE if _llm_down(reason) else PHOTO_NOTHING_FOUND

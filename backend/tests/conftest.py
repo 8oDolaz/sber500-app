@@ -54,8 +54,8 @@ def migrated(settings: Settings) -> None:
 
 
 @pytest.fixture
-def fake_llm() -> FakeProvider:
-    return FakeProvider(models=["deepseek-v4.1-flash", "gigachat-3-pro"])
+def fake_llm(settings: Settings) -> FakeProvider:
+    return FakeProvider(models=sorted(settings.llm_models_in_use))
 
 
 @pytest.fixture

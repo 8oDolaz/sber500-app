@@ -4,7 +4,7 @@ from planner.cli import ping, ping_extract
 from planner.modules.analytics.llm_ledger import UsageEntry
 from planner.modules.assistant.llm_gateway.fake import FakeProvider, echo_task_responder
 from planner.modules.assistant.llm_gateway.gateway import LLMGateway
-from planner.modules.assistant.llm_gateway.port import ChatMessage, LLMRequest
+from planner.modules.assistant.llm_gateway.port import ChatMessage, Image, LLMRequest
 
 
 class RecordingLedger:
@@ -40,3 +40,12 @@ async def test_ping_extract_with_no_items() -> None:
     gw = LLMGateway(FakeProvider(echo_task_responder), RecordingLedger())  # type: ignore[arg-type]
     out = await ping_extract(gw, "deepseek-v4.1-flash", "", "Europe/Moscow")
     assert "0 item(s)" in out
+
+
+async def test_ping_extract_sends_the_image() -> None:
+    provider = FakeProvider(echo_task_responder)
+    gw = LLMGateway(provider, RecordingLedger())  # type: ignore[arg-type]
+    photo = Image(b"jpeg", "image/jpeg")
+    out = await ping_extract(gw, "qwen3-vl-30b-a3b-instruct", "", "Europe/Moscow", (photo,))
+    assert "1 item(s)" in out and "Задача с фото" in out
+    assert provider.calls[0].messages[1].images == (photo,)

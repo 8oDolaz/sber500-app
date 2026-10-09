@@ -11,7 +11,9 @@ from planner.settings import get_settings
 
 if TYPE_CHECKING:
     from planner.modules.assistant.llm_gateway.gateway import LLMGateway
-    from planner.modules.assistant.llm_gateway.port import LLMRequest
+    from planner.modules.assistant.llm_gateway.port import Image, LLMRequest
+
+IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
 
 
 def export_openapi(out: Path) -> None:
@@ -55,6 +57,15 @@ async def check_models() -> None:
         raise SystemExit(1)
 
 
+async def proxy_spend() -> None:
+    from planner.modules.analytics.proxy_spend import fetch_key_spend, proxy_root
+
+    s = get_settings()
+    key = await fetch_key_spend(s.llm_base_url, s.llm_api_key.get_secret_value())
+    budget = f"{key.max_budget_rub} ₽" if key.max_budget_rub is not None else "not set on the key"
+    print(f"{proxy_root(s.llm_base_url)}/key/info\nspend: {key.spend_rub} ₽\nmax budget: {budget}")
+
+
 async def ping(llm: "LLMGateway", request: "LLMRequest") -> str:
     """One request through the gateway (ledger, metrics, quota), formatted for a human."""
     started = time.perf_counter()
@@ -69,14 +80,23 @@ async def ping(llm: "LLMGateway", request: "LLMRequest") -> str:
     )
 
 
-async def ping_extract(llm: "LLMGateway", model: str, message: str, tz: str) -> str:
-    """The production extraction prompt on one message: validated items and the commands they become."""
+def load_image(path: Path) -> "Image":
+    from planner.modules.assistant.llm_gateway.port import Image
+
+    mime_type = IMAGE_TYPES.get(path.suffix.lower())
+    if mime_type is None:
+        raise SystemExit(f"--image must be one of {', '.join(IMAGE_TYPES)}: {path}")
+    return Image(path.read_bytes(), mime_type)
+
+
+async def ping_extract(llm: "LLMGateway", model: str, message: str, tz: str, images: tuple["Image", ...] = ()) -> str:
+    """The production extraction prompt on one message (and photo): validated items and their commands."""
     from datetime import UTC, datetime
 
     from planner.modules.assistant.extraction import ExtractionContext, Extractor, PlanningError, to_command
 
     ctx = ExtractionContext(reference=datetime.now(UTC), timezone=tz, member_names=[])
-    result = await Extractor(llm, model).extract(message, ctx)
+    result = await Extractor(llm, model).extract(message, ctx, images)
     lines = [f"model: {result.model} · {len(result.items)} item(s)"]
     for item in result.items:
         lines.append(f"- {item.model_dump_json(by_alias=True)}")
@@ -87,21 +107,24 @@ async def ping_extract(llm: "LLMGateway", model: str, message: str, tz: str) -> 
     return "\n".join(lines)
 
 
-async def llm_ping(text: str, *, model: str | None, system: str | None, json_mode: bool, extract: bool) -> None:
+async def llm_ping(
+    text: str, *, model: str | None, system: str | None, json_mode: bool, extract: bool, image: Path | None
+) -> None:
     from planner.bootstrap import build_container
     from planner.modules.assistant.extraction import InvalidOutput
     from planner.modules.assistant.llm_gateway.port import ChatMessage, LLMError, LLMRequest
 
     s = get_settings()
+    images = (load_image(image),) if image else ()
     c = build_container(s)
     try:
         if extract:
-            out = await ping_extract(c.llm, model or s.llm_model_extraction, text, s.reporting_tz)
+            out = await ping_extract(c.llm, model or s.llm_model_extraction, text, s.reporting_tz, images)
         else:
             system_msgs = [ChatMessage("system", system)] if system else []
             request = LLMRequest(
-                model=model or s.llm_model_chat,
-                messages=[*system_msgs, ChatMessage("user", text)],
+                model=model or (s.llm_model_extraction if images else s.llm_model_chat),
+                messages=[*system_msgs, ChatMessage("user", text, images=images)],
                 temperature=0.3,
                 max_tokens=800,
                 json_mode=json_mode,
@@ -207,12 +230,14 @@ def main() -> None:
     p = sub.add_parser("prices-sync", help="sync model_prices from the proxy /model/info or a YAML file")
     p.add_argument("--file", type=Path)
     sub.add_parser("check-models", help="verify configured LLM models exist on the proxy")
+    sub.add_parser("proxy-spend", help="what the proxy says our API key has spent (/key/info)")
     p = sub.add_parser("llm-ping", help="send one message to the configured LLM and print the reply, tokens and ₽")
     p.add_argument("text")
-    p.add_argument("--model", help="default: LLM_MODEL_CHAT (LLM_MODEL_EXTRACTION with --extract)")
+    p.add_argument("--model", help="default: LLM_MODEL_CHAT (LLM_MODEL_EXTRACTION with --extract or --image)")
     p.add_argument("--system", help="optional system prompt")
     p.add_argument("--json", action="store_true", help="ask for a JSON object (response_format)")
     p.add_argument("--extract", action="store_true", help="run the production extraction prompt instead")
+    p.add_argument("--image", type=Path, help="attach a .jpg/.png/.webp file (the model must be a VLM)")
     sub.add_parser("set-webhook", help="point the Telegram bot webhook at PUBLIC_APP_URL")
     sub.add_parser("bot-check", help="call the Bot API (through TELEGRAM_PROXY if set) and show the webhook state")
     p = sub.add_parser("cost-report", help="LLM ₽ per DAU from the ledger for the last N days")
@@ -226,9 +251,18 @@ def main() -> None:
             asyncio.run(prices_sync(args.file))
         case "check-models":
             asyncio.run(check_models())
+        case "proxy-spend":
+            asyncio.run(proxy_spend())
         case "llm-ping":
             asyncio.run(
-                llm_ping(args.text, model=args.model, system=args.system, json_mode=args.json, extract=args.extract)
+                llm_ping(
+                    args.text,
+                    model=args.model,
+                    system=args.system,
+                    json_mode=args.json,
+                    extract=args.extract,
+                    image=args.image,
+                )
             )
         case "set-webhook":
             asyncio.run(set_webhook())
