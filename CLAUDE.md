@@ -42,7 +42,7 @@ backend/                 Python 3.13 · uv · FastAPI · aiogram 3 · SQLAlchemy
     bootstrap.py         composition root: builds the Container (the only module that imports everything)
     settings.py          pydantic-settings; every env var is declared here
     models.py            imports every table module so Base.metadata is complete
-    cli.py               ops commands: python -m planner.cli <export-openapi|prices-sync|check-models|set-webhook|bot-check|cost-report>
+    cli.py               ops commands: python -m planner.cli <export-openapi|prices-sync|check-models|proxy-spend|set-webhook|bot-check|cost-report>
   migrations/            Alembic (env.py, versions/YYYYMMDD_<rev>_<slug>.py)
   tests/{unit,integration,evals}
   loadtest/locustfile.py
@@ -112,11 +112,13 @@ Run `make lint && make test` locally before pushing. `pytest -m eval` is exclude
 `frontend/` and `infra/`, writes `infra/.env.prod` from the `PROD_ENV_FILE` secret and
 `infra/xray/config.json` from the `XRAY_CONFIG` secret, and runs
 `infra/deploy/deploy.sh` on the server (pg_dump → `compose build --pull` → `up -d` → wait for the API
-→ `bot-check`, `prices-sync`, `check-models`, Grafana role → `/api/readyz` smoke test). It runs on
+→ Caddy reload → `bot-check`, `prices-sync`, `check-models`, Grafana role → `/api/readyz` smoke test). It runs on
 pushes to `main` and manually; without `DEPLOY_HOST`, `DEPLOY_SSH_KEY`, `PROD_ENV_FILE` and `XRAY_CONFIG` in the
 GitHub `production` environment it skips. `deploy.sh` must stay idempotent: every step may run again
 on the next deploy. New production settings go into `infra/.env.prod.example` (the only committed
 `.env.*` file besides `backend/.env.example`). Guide: `docs/deployment.md` §5.
+Caddy is the only public service: the PWA/API at `https://$DOMAIN/` and Grafana at `https://$DOMAIN/grafana/`
+(sign-in required, accounts by admin invite only; Prometheus stays on `127.0.0.1`).
 
 ## Backend conventions
 
@@ -168,7 +170,7 @@ in `*_m5_metrics_views.py`; every view must exclude test users, load-test traffi
 - aiogram 3. Services are injected into handlers by parameter name through `Dispatcher(**services)`
   in `bot/app.py`. Add a new service there before using it in a handler.
 - `handlers.py` holds commands/callbacks/inline queries; `capture.py` handles everything else in a
-  private chat (must stay registered after the command router).
+  private chat (must stay registered after the command router): text, photos and image files.
 - **All bot copy lives in `texts.py`**, HTML parse mode: escape anything user-provided with `html.escape`.
 - The bot long-polls everywhere: locally with `make bot`, in production as the `bot` container. Telegram is
   blocked in Russia, so production sends all Bot API calls through `TELEGRAM_PROXY` (`socks5://xray:1080`,
@@ -192,7 +194,9 @@ this catalog; pre-login events are accepted only when `preauth_allowed=True`. Th
 ADR 0003: changing it requires a new ADR, not a code tweak.
 
 **LLM** (`modules/assistant`): one `LLMProvider` port with `OpenAICompatibleProvider` (real, via the
-accelerator proxy) and `FakeProvider` (tests, CI, load tests). Every call is ledgered in `llm_usage`
+accelerator proxy) and `FakeProvider` (tests, CI, load tests). Capture reads text and photos, so
+`LLM_MODEL_EXTRACTION` must be a vision model (ADR 0005); `ChatMessage.images` go out as base64 data URLs
+and are never stored. Every call is ledgered in `llm_usage`
 with cost in micro-rubles; `LLMBudgetExceeded` (HTTP 429 from the proxy) is never retried and the
 product degrades to "save as plain task". Message text is fenced as untrusted data in prompts; only
 first names go to the model. Extraction quality has a golden set in `tests/evals/`.
@@ -226,7 +230,7 @@ Use modern typing (`X | None`, `list[...]`, `StrEnum`, PEP 695 generics).
   `PlatformAdapter` in `packages/platform`; do not call browser APIs directly from screens.
 - Design tokens are CSS variables in `packages/ui-kit/src/tokens.css`; components in `components.tsx`.
 - Analytics: `services.analytics.track("event_name", props)` with names from the backend catalog.
-- The service worker must never cache `/api/*` (`navigateFallbackDenylist` in `apps/pwa/vite.config.ts`).
+- The service worker must never cache `/api/*` or answer for `/grafana/*` (`navigateFallbackDenylist` in `apps/pwa/vite.config.ts`).
 
 ## Testing conventions
 
@@ -251,7 +255,7 @@ Frontend:
 ## Invariants to preserve
 
 - **Nothing is written from a bot message before the user presses «Сохранить»** (propose → confirm,
-  drafts expire after 24 h).
+  drafts expire after 24 h). Photos sent to the bot are never stored.
 - **Family scoping**: every family-owned query filters by `family_id`; family routes use `MemberDep`.
 - **Secrets at rest are hashed** (login tokens, magic links, refresh tokens: SHA-256). Access JWTs
   live 15 minutes in memory only; refresh cookies are httpOnly, rotate on use, and reuse revokes the chain.

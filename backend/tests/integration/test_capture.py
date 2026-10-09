@@ -8,7 +8,7 @@ from sqlalchemy import select
 from planner.bootstrap import Container
 from planner.modules.analytics.tables import AnalyticsEventRow
 from planner.modules.assistant.llm_gateway.fake import FakeProvider
-from planner.modules.assistant.llm_gateway.port import LLMBudgetExceeded, LLMRequest
+from planner.modules.assistant.llm_gateway.port import Image, LLMBudgetExceeded, LLMRequest
 from planner.modules.assistant.tables import DraftActionRow
 from planner.modules.planning.tables import EventRow, TaskRow
 
@@ -88,6 +88,34 @@ async def test_llm_failure_offers_saving_as_is(
     async with container.db.sessions() as s:
         assert (await s.scalars(select(TaskRow))).one().created_via == "bot_raw"
     assert "capture_failed" in await names(container)
+
+
+async def test_photo_capture_is_counted_and_has_no_raw_fallback(
+    client: httpx.AsyncClient, container: Container, fake_llm: FakeProvider
+) -> None:
+    user_id, family_id = await family(client)
+    photo = Image(b"jpeg", "image/jpeg")
+    fake_llm.fail_with = LLMBudgetExceeded("Budget has been exceeded")
+    out = await container.capture.capture(
+        user_id=user_id, family_id=family_id, text="", images=(photo,), source="own", written_at=datetime.now(UTC)
+    )
+    assert (out.failure, out.drafts) == ("llm_budget", [])
+
+    fake_llm.fail_with = None
+    llm_returns(fake_llm, {"items": [{"kind": "task", "title": "Купить краски"}]})
+    out = await container.capture.capture(
+        user_id=user_id, family_id=family_id, text="", images=(photo,), source="own", written_at=datetime.now(UTC)
+    )
+    [draft] = out.drafts
+    assert (draft.summary, draft.raw) == ("Задача: Купить краски", False)
+    assert fake_llm.calls[-1].messages[1].images == (photo,)
+
+    await container.dispatcher.dispatch_batch()
+    async with container.db.sessions() as s:
+        received = (
+            await s.scalars(select(AnalyticsEventRow).where(AnalyticsEventRow.name == "capture_received"))
+        ).all()
+    assert [e.properties["content_type"] for e in received] == ["photo", "photo"]
 
 
 async def test_invalid_json_is_retried_once_then_falls_back(

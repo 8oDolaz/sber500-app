@@ -7,6 +7,7 @@ from collections.abc import Callable
 from planner.modules.assistant.llm_gateway.port import LLMError, LLMRequest, LLMResult
 
 Responder = Callable[[LLMRequest], str]
+IMAGE_TOKENS = 1000  # roughly what a ~1280 px photo costs a VLM
 
 
 class FakeProvider:
@@ -30,11 +31,12 @@ class FakeProvider:
             raise self.fail_with
         text = self._responder(request)
         prompt_chars = sum(len(m.content) for m in request.messages)
+        images = sum(len(m.images) for m in request.messages)
         return LLMResult(
             text=text,
             provider=self.name,
             model=request.model,
-            input_tokens=max(1, prompt_chars // 4),
+            input_tokens=max(1, prompt_chars // 4) + images * IMAGE_TOKENS,
             output_tokens=max(1, len(text) // 4),
         )
 
@@ -46,9 +48,15 @@ _MESSAGE = re.compile(r"<message>\n(.*?)\n</message>", re.S)
 
 
 def echo_task_responder(request: LLMRequest) -> str:
-    """For local dev, e2e and load tests: the message's first line becomes one task."""
-    found = _MESSAGE.search(request.messages[-1].content if request.messages else "")
+    """For local dev, e2e and load tests: the message's first line becomes one task.
+
+    A photo without a caption becomes "Задача с фото", so image capture works end to end without a VLM.
+    """
+    last = request.messages[-1] if request.messages else None
+    found = _MESSAGE.search(last.content if last else "")
     text = found.group(1).strip() if found else ""
+    if not text and last is not None and last.images:
+        text = "Задача с фото"
     if not text:
         return json.dumps({"items": []})
     return json.dumps({"items": [{"kind": "task", "title": text.splitlines()[0][:120]}]}, ensure_ascii=False)

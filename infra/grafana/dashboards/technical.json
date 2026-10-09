@@ -359,6 +359,81 @@
           "legendFormat": "{{status}}"
         }
       ]
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "LLM spend (proxy /key/info), ₽",
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyRUB",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "llm_proxy_spend_rub",
+          "legendFormat": "spent"
+        },
+        {
+          "refId": "B",
+          "expr": "llm_proxy_max_budget_rub",
+          "legendFormat": "key budget"
+        }
+      ],
+      "description": "Total the accelerator proxy has charged to our API key (LiteLLM GET /key/info), refreshed every 5 minutes by the worker. Unlike the ledger, it also counts evals, llm-ping and any use of the same key outside this app. \"key budget\" appears only when the proxy sets a limit on the key."
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "LLM tokens, total: input / output",
+      "gridPos": {
+        "x": 12,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT coalesce(sum(input_tokens), 0) AS input, coalesce(sum(output_tokens), 0) AS output FROM metrics_llm_cost"
+        }
+      ],
+      "description": "All tokens since launch, from the llm_usage ledger (metrics_llm_cost): ignores the time range. Excludes the fake LLM, evals and test users. Input includes cached input tokens."
     }
   ],
   "editable": true

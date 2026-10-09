@@ -1,7 +1,8 @@
 # Single-VM deployment (staging / MVP production), e.g. a Russian cloud VM (152-FZ).
 #   cp infra/.env.prod.example infra/.env.prod   # fill in secrets
 #   docker compose -f infra/compose.prod.yml --env-file infra/.env.prod up -d --build
-# Only Caddy is public (80/443). Grafana and Prometheus listen on 127.0.0.1: use an SSH tunnel.
+# Only Caddy is public (80/443). It also serves Grafana at https://$DOMAIN/grafana/ (sign-in required).
+# Prometheus (and Grafana's own port) listen on 127.0.0.1: use an SSH tunnel.
 # The bot long-polls Telegram through the xray proxy (ADR 0004); xray reads infra/xray/config.json.
 name: kainem
 services:
@@ -78,7 +79,8 @@ services:
       DOMAIN: ${DOMAIN:?set DOMAIN}
     ports: ["80:80", "443:443"]
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # The directory, not the file: deploy.sh reloads Caddy, and a file mount would keep the old inode after rsync.
+      - ./caddy:/etc/caddy:ro
       - caddydata:/data
     depends_on: [web]
 
@@ -95,13 +97,22 @@ services:
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
+      # Public at https://$DOMAIN/grafana/ through Caddy. Invite links and redirects use this URL.
+      GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_COOKIE_SECURE: "true"
+      # Accounts only through the admin (Administration → Users → Invite); nothing visible without signing in.
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_USER_INVITE_MAX_LIFETIME_DURATION: 72h
       GRAFANA_PG_USER: ${GRAFANA_PG_USER:-grafana_reader}
       GRAFANA_PG_PASSWORD: ${GRAFANA_PG_PASSWORD:?set GRAFANA_PG_PASSWORD}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafanadata:/var/lib/grafana
-    ports: ["127.0.0.1:3000:3000"]
+    ports: ["127.0.0.1:3000:3000"]  # SSH tunnel fallback: http://localhost:3000/grafana/
 
 volumes:
   pgdata:

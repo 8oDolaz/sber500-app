@@ -1,21 +1,38 @@
-"""Bot capture: messages → draft cards → «зафиксировал!» (SPEC screens G → H)."""
+"""Bot capture: messages and photos → draft cards → «зафиксировал!» (SPEC screens G → H)."""
 
 import uuid
 from datetime import datetime
 
+import structlog
 from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
 from aiogram.filters import Filter
-from aiogram.types import CallbackQuery, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    CallbackQuery,
+    ForceReply,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    PhotoSize,
+)
 from redis.asyncio import Redis
 
 from planner.entrypoints.bot import texts
 from planner.infra.ratelimit import RateLimiter
 from planner.modules.assistant.capture import CaptureOutcome, CaptureService
+from planner.modules.assistant.llm_gateway.port import Image
 from planner.modules.families.service import FamilyService
 from planner.modules.identity.service import IdentityService
 
+log = structlog.get_logger(__name__)
+
 CAPTURES_PER_MIN = 20
 REVISE_TTL_S = 30 * 60
+# Photos: Telegram keeps several sizes; ~1280 px is enough to read a school notice and costs ~1k image tokens.
+MAX_PHOTO_SIDE = 1280
+# Images sent "as a file" (uncompressed screenshots): formats every VLM accepts, and a size cap.
+IMAGE_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 
 def cb(action: str, draft_id: uuid.UUID) -> str:
@@ -64,12 +81,79 @@ async def family_label(families: FamilyService, user_id: uuid.UUID, family_id: u
 
 
 async def send_outcome(message: Message, outcome: CaptureOutcome, family: str | None) -> None:
+    if outcome.failure is not None and not outcome.drafts:
+        await message.answer(texts.photo_failed(outcome.failure))
+        return
     if outcome.failure is not None:
         [draft] = outcome.drafts
         await message.answer(texts.fallback(outcome.failure, draft.summary), reply_markup=card_keyboard(draft.id, True))
         return
     for draft in outcome.drafts:
         await message.answer(texts.draft_card(draft.summary, family), reply_markup=card_keyboard(draft.id, False))
+
+
+def pick_photo(sizes: list[PhotoSize]) -> PhotoSize:
+    """The largest size within MAX_PHOTO_SIDE (Telegram lists sizes from small to large)."""
+    fitting = [p for p in sizes if max(p.width, p.height) <= MAX_PHOTO_SIDE]
+    return fitting[-1] if fitting else min(sizes, key=lambda p: p.width * p.height)
+
+
+def is_image_document(message: Message) -> bool:
+    doc = message.document
+    return doc is not None and doc.mime_type in IMAGE_MIME_TYPES and (doc.file_size or 0) <= MAX_IMAGE_BYTES
+
+
+async def download_image(bot: Bot, message: Message) -> Image:
+    """In memory only: images go to the VLM and are never stored (ADR 0005)."""
+    if message.photo:
+        file_id, mime_type = pick_photo(message.photo).file_id, "image/jpeg"  # Telegram re-encodes photos as JPEG
+    else:
+        assert message.document is not None and message.document.mime_type is not None
+        file_id, mime_type = message.document.file_id, message.document.mime_type
+    buffer = await bot.download(file_id)
+    assert buffer is not None
+    return Image(buffer.read(), mime_type)
+
+
+async def _capture(
+    message: Message,
+    bot: Bot,
+    capture: CaptureService,
+    identity: IdentityService,
+    families: FamilyService,
+    rate_limiter: RateLimiter,
+    *,
+    text: str,
+    with_image: bool,
+) -> None:
+    assert message.from_user is not None
+    user_id, family_id = await identity.resolve_telegram(message.from_user.id)
+    if user_id is None or family_id is None:
+        await message.answer(texts.NOT_REGISTERED)
+        return
+    if not await rate_limiter.hit(f"capture:{message.from_user.id}", CAPTURES_PER_MIN):
+        await message.answer(texts.TOO_FAST)
+        return
+    await bot.send_chat_action(message.chat.id, "typing")
+    images: tuple[Image, ...] = ()
+    if with_image:
+        try:
+            images = (await download_image(bot, message),)
+        except (TelegramNetworkError, TelegramAPIError) as exc:
+            log.warning("bot.image_download_failed", error=repr(exc)[:300])
+            await message.answer(texts.PHOTO_DOWNLOAD_FAILED)
+            return
+    forwarded = message.forward_origin is not None
+    written_at: datetime = message.forward_origin.date if message.forward_origin else message.date
+    outcome = await capture.capture(
+        user_id=user_id,
+        family_id=family_id,
+        text=text,
+        images=images,
+        source="forwarded" if forwarded else "own",
+        written_at=written_at,
+    )
+    await send_outcome(message, outcome, await family_label(families, user_id, family_id))
 
 
 async def capture_text(
@@ -80,25 +164,21 @@ async def capture_text(
     families: FamilyService,
     rate_limiter: RateLimiter,
 ) -> None:
-    assert message.from_user is not None and message.text is not None
-    user_id, family_id = await identity.resolve_telegram(message.from_user.id)
-    if user_id is None or family_id is None:
-        await message.answer(texts.NOT_REGISTERED)
-        return
-    if not await rate_limiter.hit(f"capture:{message.from_user.id}", CAPTURES_PER_MIN):
-        await message.answer(texts.TOO_FAST)
-        return
-    await bot.send_chat_action(message.chat.id, "typing")
-    forwarded = message.forward_origin is not None
-    written_at: datetime = message.forward_origin.date if message.forward_origin else message.date
-    outcome = await capture.capture(
-        user_id=user_id,
-        family_id=family_id,
-        text=message.text,
-        source="forwarded" if forwarded else "own",
-        written_at=written_at,
-    )
-    await send_outcome(message, outcome, await family_label(families, user_id, family_id))
+    assert message.text is not None
+    await _capture(message, bot, capture, identity, families, rate_limiter, text=message.text, with_image=False)
+
+
+async def capture_image(
+    message: Message,
+    bot: Bot,
+    capture: CaptureService,
+    identity: IdentityService,
+    families: FamilyService,
+    rate_limiter: RateLimiter,
+) -> None:
+    """A photo or an image file, with or without a caption. Each photo of an album arrives separately."""
+    text = message.caption or ""
+    await _capture(message, bot, capture, identity, families, rate_limiter, text=text, with_image=True)
 
 
 async def capture_unsupported(message: Message, capture: CaptureService, identity: IdentityService) -> None:
@@ -107,7 +187,7 @@ async def capture_unsupported(message: Message, capture: CaptureService, identit
     if user_id is None or family_id is None:
         await message.answer(texts.NOT_REGISTERED)
         return
-    kind = "photo" if message.photo else "voice" if (message.voice or message.video_note) else "other"
+    kind = "voice" if (message.voice or message.video_note) else "other"
     await capture.record_unsupported(
         user_id=user_id,
         family_id=family_id,
@@ -183,6 +263,8 @@ def build_router() -> Router:
     private = F.chat.type == "private"
     router.message.register(revise, private, F.text, IsRevision())
     router.message.register(capture_text, private, F.text, ~F.text.startswith("/"))
-    router.message.register(capture_unsupported, private, F.photo | F.voice | F.video_note | F.document | F.video)
+    router.message.register(capture_image, private, F.photo)
+    router.message.register(capture_image, private, F.document, is_image_document)
+    router.message.register(capture_unsupported, private, F.voice | F.video_note | F.document | F.video)
     router.callback_query.register(on_card_button, F.data.startswith("d:"))
     return router

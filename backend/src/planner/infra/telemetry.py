@@ -24,6 +24,8 @@ LLM_LATENCY = Histogram(
     buckets=(0.25, 0.5, 1, 2, 4, 8, 15, 30, 60),
 )
 LLM_SPEND_RUB = Gauge("llm_spend_rub_total", "Total LLM spend recorded in the ledger, RUB")
+LLM_PROXY_SPEND_RUB = Gauge("llm_proxy_spend_rub", "LLM spend of our API key as reported by the proxy /key/info, RUB")
+LLM_PROXY_MAX_BUDGET_RUB = Gauge("llm_proxy_max_budget_rub", "Budget limit of our API key on the proxy, RUB")
 LLM_LEDGER_WRITE_FAILED = Counter("llm_ledger_write_failed_total", "Failed llm_usage ledger writes")
 
 # --- Outbox / jobs ---

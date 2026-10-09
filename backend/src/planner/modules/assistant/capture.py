@@ -2,6 +2,7 @@
 
 Propose → confirm (ARCHITECTURE §6.1, ADR #7): nothing is written until the user presses «Сохранить».
 When the LLM is unavailable or finds nothing, the fallback draft offers to save the text as a task as-is.
+Photos (with or without a caption) go to the same vision model; images are never stored (ADR 0005).
 """
 
 import uuid
@@ -30,6 +31,7 @@ from planner.modules.analytics.catalog import (
 from planner.modules.analytics.tracker import EventContext, Tracker
 from planner.modules.assistant.extraction import ExtractionContext, Extractor, InvalidOutput, to_command
 from planner.modules.assistant.llm_gateway.port import (
+    Image,
     LLMBudgetExceeded,
     LLMError,
     LLMQuotaExceeded,
@@ -43,6 +45,7 @@ from planner.modules.planning.service import Actor, PlanningService
 log = structlog.get_logger(__name__)
 
 DRAFT_TTL = timedelta(hours=24)
+PHOTO_SOURCE_TEXT = "[фото]"  # source_text of drafts from a photo without a caption
 WEEKDAYS_SHORT = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 
 Source = Literal["forwarded", "own"]
@@ -60,7 +63,8 @@ class Draft:
 @dataclass(frozen=True, slots=True)
 class CaptureOutcome:
     drafts: list[Draft]
-    failure: FailureReason | None = None  # set together with a single raw draft
+    # Set together with a single raw draft, or with no draft for a photo without a caption (nothing to save as-is).
+    failure: FailureReason | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,6 +173,7 @@ class CaptureService:
         text: str,
         source: Source,
         written_at: datetime,
+        images: tuple[Image, ...] = (),
         revision_of: uuid.UUID | None = None,
     ) -> CaptureOutcome:
         ctx = EventContext(Platform.TELEGRAM_BOT, user_id, family_id, app_version=self._app_version)
@@ -179,7 +184,8 @@ class CaptureService:
             )
         if revision_of is None:
             async with self._db.transaction() as session:
-                self._tracker.track(session, CaptureReceived(source=source, content_type="text"), ctx)
+                content_type = "photo" if images else "text"
+                self._tracker.track(session, CaptureReceived(source=source, content_type=content_type), ctx)
 
         ex_ctx = ExtractionContext(
             reference=written_at, timezone=tz, member_names=names, user_id=user_id, family_id=family_id
@@ -188,7 +194,7 @@ class CaptureService:
         failure: FailureReason | None = None
         model: str | None = None
         try:
-            result = await self._extractor.extract(text, ex_ctx)
+            result = await self._extractor.extract(text, ex_ctx, images)
             model = result.model
             for item in result.items:
                 try:
@@ -203,14 +209,15 @@ class CaptureService:
 
         if failure is not None:
             model = None
-            commands = [NewTask(text.splitlines()[0] if text.strip() else text)]
+            commands = [NewTask(text.strip().splitlines()[0])] if text.strip() else []
 
+        source_text = text if text.strip() else PHOTO_SOURCE_TEXT
         async with self._db.transaction() as session:
             if failure is not None:
                 self._tracker.track(session, CaptureFailed(reason=failure), ctx)
             drafts = [
                 self._add_draft(
-                    session, ctx, cmd, tz, source=source, source_text=text, model=model, revision_of=revision_of
+                    session, ctx, cmd, tz, source=source, source_text=source_text, model=model, revision_of=revision_of
                 )
                 for cmd in commands
             ]
@@ -256,9 +263,9 @@ class CaptureService:
         user_id: uuid.UUID,
         family_id: uuid.UUID,
         source: Source,
-        content_type: Literal["photo", "voice", "other"],
+        content_type: Literal["voice", "other"],
     ) -> None:
-        """Photos/voice aren't understood yet; count them to see the demand."""
+        """Voice, video and non-image files aren't understood yet; count them to see the demand."""
         async with self._db.transaction() as session:
             self._tracker.track(
                 session,

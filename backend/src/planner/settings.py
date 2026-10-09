@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://shared1.multitool.works:4000/v1"
     llm_api_key: SecretStr = SecretStr("")
     llm_timeout_s: float = 30.0
-    llm_model_extraction: str = "deepseek-v4.1-flash"
+    # Capture reads text and photos, so it must be a vision model (VLM, ADR 0005): fast MoE, ~3B active params.
+    llm_model_extraction: str = "qwen3-vl-30b-a3b-instruct"
     llm_model_chat: str = "gigachat-3-pro"
 
     # Spend control (RUB)

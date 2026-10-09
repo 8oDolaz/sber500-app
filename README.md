@@ -89,15 +89,16 @@ The bot runs in long polling mode, locally (`make bot`) and in production. Teleg
 - Every call is written to the `llm_usage` ledger, with its cost in micro-rubles.
 - A spend alert fires at 50% and 80% of `LLM_PROGRAM_BUDGET_RUB`. Each family also has a daily quota.
 - `python -m planner.cli prices-sync` refreshes `model_prices` from the proxy's `/model/info`, or from a YAML file with `--file`.
-- Extraction quality: `cd backend && LLM_API_KEY=… EVAL_MODELS=deepseek-v4.1-flash,gigachat-3-pro uv run pytest -m eval -s`. It runs the 30-message golden set (`tests/evals/extraction_cases.yaml`), prints accuracy and ₽ per call for each model, writes `eval-report.json`, and **spends budget**.
+- Capture reads photos too: the extraction model is a vision model (`qwen3-vl-30b-a3b-instruct`, ADR 0005). Try one with `python -m planner.cli llm-ping --extract --image notice.jpg "подпись"`.
+- Extraction quality: `cd backend && LLM_API_KEY=… EVAL_MODELS=qwen3-vl-30b-a3b-instruct,deepseek-v4.1-flash uv run pytest -m eval -s`. It runs the 30-message golden set (`tests/evals/extraction_cases.yaml`), prints accuracy and ₽ per call for each model, writes `eval-report.json`, and **spends budget**.
 - With `LLM_PROVIDER=fake`, each message becomes one task titled with its first line. Local dev, e2e and load tests use this.
 - See [ADR 0001](docs/adr/0001-llm-provider.md).
 
 ## Observability
 
 - **Dashboards** (Grafana, provisioned from `infra/grafana/`):
-  - "kainem — technical" (Prometheus): request rate, **5xx error rate**, latency percentiles, Telegram updates, LLM calls and spend, outbox lag, analytics rejects.
-  - "kainem — product" (Postgres views `metrics_*`): **DAU**/WAU/MAU by platform, new users by source, new families, registration and invite funnels, AI confirm rate, **LLM ₽/day and ₽ per DAU**, retention, family activation.
+  - "kainem — technical" (Prometheus): request rate, **5xx error rate**, latency percentiles, Telegram updates, LLM calls and spend (ledger and the proxy's own `/key/info` total), total input/output tokens, outbox lag, analytics rejects.
+  - "kainem — product" (Postgres views `metrics_*`): **DAU**/WAU/MAU by platform, new users by source, new families, registration and invite funnels, AI confirm rate, **LLM ₽/day and ₽ per DAU**, LLM tokens per day, retention, family activation.
   - Every view excludes test and load-test accounts and the fake LLM.
 - **Alerts** (`infra/prometheus/alerts.yml`): 5xx above 2%, p95 latency above 1 s, failing bot updates, failing LLM calls, exhausted LLM budget, outbox lag, analytics rejects.
 - **Metrics** (Prometheus): `/metrics` on the API (not exposed through nginx), `:9101/metrics` on the worker.
@@ -122,4 +123,4 @@ Full step-by-step guide: [`docs/deployment.md`](docs/deployment.md) §5. In shor
 The workflow rsyncs the sources and runs `infra/deploy/deploy.sh` on the server: database backup,
 `docker compose up -d --build`, migrations, a Bot API check through the proxy, LLM prices, Grafana role, smoke test.
 
-- **TLS:** Caddy terminates it for `DOMAIN` (automatic certificates) and is the only public service. Grafana and Prometheus listen on `127.0.0.1`; reach them through an SSH tunnel.
+- **TLS:** Caddy terminates it for `DOMAIN` (automatic certificates) and is the only public service. It serves Grafana at `https://<DOMAIN>/grafana/` (sign-in required, accounts by admin invite, `docs/deployment.md` §5.6). Prometheus listens on `127.0.0.1`; reach it through an SSH tunnel.
