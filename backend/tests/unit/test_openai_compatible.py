@@ -11,7 +11,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from planner.modules.assistant.llm_gateway.openai_compatible import OpenAICompatibleProvider
-from planner.modules.assistant.llm_gateway.port import ChatMessage, LLMBudgetExceeded, LLMRateLimited, LLMRequest
+from planner.modules.assistant.llm_gateway.port import (
+    ChatMessage,
+    Image,
+    LLMBudgetExceeded,
+    LLMRateLimited,
+    LLMRequest,
+)
 
 proxy = FastAPI()
 state: dict = {}
@@ -87,6 +93,21 @@ async def test_completion_usage_and_proxy_cost(proxy_url: str) -> None:
     assert (result.input_tokens, result.output_tokens) == (120, 8)
     assert result.reported_cost == Decimal("0.00321")
     assert state["last_body"]["response_format"] == {"type": "json_object"}
+
+
+async def test_images_are_sent_as_data_urls(proxy_url: str) -> None:
+    state["mode"] = "ok"
+    photo = ChatMessage("user", "что на фото?", images=(Image(b"\x89PNG", "image/png"),))
+    await provider(proxy_url).complete(LLMRequest(model="qwen3-vl-30b-a3b-instruct", messages=[photo]))
+    assert state["last_body"]["messages"] == [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "что на фото?"},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw=="}},
+            ],
+        }
+    ]
 
 
 async def test_budget_429_maps_to_budget_exceeded(proxy_url: str) -> None:

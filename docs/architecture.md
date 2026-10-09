@@ -188,6 +188,8 @@ sequenceDiagram
 
 Nothing is written before «Сохранить» (propose → confirm). If the LLM is unavailable (budget, timeout, invalid output) or finds nothing, the card offers «Сохранить как задачу» without the LLM.
 
+Photos and image files take the same path (ADR 0005): the extraction model is a vision model, the bot downloads the image into memory (never stored), and the caption is the message text. A photo without a caption that can't be read gets a "write it as text" reply instead of a «Сохранить как задачу» card.
+
 ## 5. Data model
 
 ```mermaid
@@ -255,7 +257,7 @@ flowchart LR
 
 | | |
 |---|---|
-| Decisions | [`docs/adr/`](adr): 0001 LLM provider, 0002 PWA login through the bot, 0003 active user, 0004 Telegram through a VLESS proxy |
+| Decisions | [`docs/adr/`](adr): 0001 LLM provider, 0002 PWA login through the bot, 0003 active user, 0004 Telegram through a VLESS proxy, 0005 photo capture through a vision model |
 | Load test | [`docs/load-test.md`](load-test.md), `backend/loadtest/locustfile.py` |
 | LLM cost per DAU | [`docs/llm-cost-per-dau.md`](llm-cost-per-dau.md), `python -m planner.cli cost-report` |
 | Extraction quality | `backend/tests/evals/` (`pytest -m eval`) |

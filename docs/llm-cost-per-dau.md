@@ -4,7 +4,9 @@ Acceptance criterion: an LLM cost-per-DAU analysis in the context of how the pro
 
 **Bottom line (estimate):** with `deepseek-v4.1-flash` for extraction, kainem costs about **0.14 ₽ per daily active user per day** at 3 forwarded messages per user per day. The realistic range is **0.03–0.40 ₽**, depending on usage and model. The whole program budget (75 000 ₽) covers roughly **half a million DAU-days** at the base rate.
 
-These are estimates: there is no production traffic yet, and the extraction model isn't chosen yet. The ledger measures the real number from the first real call (see "Measuring it for real" below).
+**Update (ADR 0005):** extraction now uses the vision model `qwen3-vl-30b-a3b-instruct` so it can read photos. It is cheaper per token, about **0.023 ₽ per text call**, which puts the base rate near 0.08 ₽ per DAU-day. A photo adds about 1 000 input tokens (+0.034 ₽), so a photo capture costs about **0.06 ₽**.
+
+These are estimates: there is no production traffic yet. The ledger measures the real number from the first real call (see "Measuring it for real" below).
 
 ## Where the product spends LLM money
 
@@ -36,7 +38,8 @@ This gives **≈ 1.15 calls per capture**.
 | Model | Input | Output | **₽ per call** | ₽ per capture (×1.15) |
 |---|---|---|---|---|
 | deepseek-v4-flash | 43.30 | 86.58 | **0.024** | 0.027 |
-| **deepseek-v4.1-flash** (default) | 64.94 | 194.81 | **0.040** | 0.046 |
+| **qwen3-vl-30b-a3b-instruct** (default, reads photos) | 34.16 | 136.64 | **0.023** (photo: ~0.057) | 0.026 |
+| deepseek-v4.1-flash (previous default, text only) | 64.94 | 194.81 | **0.040** | 0.046 |
 | gigachat-3-pro | 73.03 | 176.39 | **0.042** | 0.048 |
 | gigachat3.5-432b-a28b-reasoning | 96.22 | 288.60 | 0.059 + reasoning tokens* | ≥ 0.07 |
 | deepseek-v4-pro | 183.00 | 732.00 | **0.123** | 0.142 |

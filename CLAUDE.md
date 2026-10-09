@@ -170,7 +170,7 @@ in `*_m5_metrics_views.py`; every view must exclude test users, load-test traffi
 - aiogram 3. Services are injected into handlers by parameter name through `Dispatcher(**services)`
   in `bot/app.py`. Add a new service there before using it in a handler.
 - `handlers.py` holds commands/callbacks/inline queries; `capture.py` handles everything else in a
-  private chat (must stay registered after the command router).
+  private chat (must stay registered after the command router): text, photos and image files.
 - **All bot copy lives in `texts.py`**, HTML parse mode: escape anything user-provided with `html.escape`.
 - The bot long-polls everywhere: locally with `make bot`, in production as the `bot` container. Telegram is
   blocked in Russia, so production sends all Bot API calls through `TELEGRAM_PROXY` (`socks5://xray:1080`,
@@ -194,7 +194,9 @@ this catalog; pre-login events are accepted only when `preauth_allowed=True`. Th
 ADR 0003: changing it requires a new ADR, not a code tweak.
 
 **LLM** (`modules/assistant`): one `LLMProvider` port with `OpenAICompatibleProvider` (real, via the
-accelerator proxy) and `FakeProvider` (tests, CI, load tests). Every call is ledgered in `llm_usage`
+accelerator proxy) and `FakeProvider` (tests, CI, load tests). Capture reads text and photos, so
+`LLM_MODEL_EXTRACTION` must be a vision model (ADR 0005); `ChatMessage.images` go out as base64 data URLs
+and are never stored. Every call is ledgered in `llm_usage`
 with cost in micro-rubles; `LLMBudgetExceeded` (HTTP 429 from the proxy) is never retried and the
 product degrades to "save as plain task". Message text is fenced as untrusted data in prompts; only
 first names go to the model. Extraction quality has a golden set in `tests/evals/`.
@@ -253,7 +255,7 @@ Frontend:
 ## Invariants to preserve
 
 - **Nothing is written from a bot message before the user presses «Сохранить»** (propose → confirm,
-  drafts expire after 24 h).
+  drafts expire after 24 h). Photos sent to the bot are never stored.
 - **Family scoping**: every family-owned query filters by `family_id`; family routes use `MemberDep`.
 - **Secrets at rest are hashed** (login tokens, magic links, refresh tokens: SHA-256). Access JWTs
   live 15 minutes in memory only; refresh cookies are httpOnly, rotate on use, and reuse revokes the chain.

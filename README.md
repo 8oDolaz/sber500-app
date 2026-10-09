@@ -89,7 +89,8 @@ The bot runs in long polling mode, locally (`make bot`) and in production. Teleg
 - Every call is written to the `llm_usage` ledger, with its cost in micro-rubles.
 - A spend alert fires at 50% and 80% of `LLM_PROGRAM_BUDGET_RUB`. Each family also has a daily quota.
 - `python -m planner.cli prices-sync` refreshes `model_prices` from the proxy's `/model/info`, or from a YAML file with `--file`.
-- Extraction quality: `cd backend && LLM_API_KEY=… EVAL_MODELS=deepseek-v4.1-flash,gigachat-3-pro uv run pytest -m eval -s`. It runs the 30-message golden set (`tests/evals/extraction_cases.yaml`), prints accuracy and ₽ per call for each model, writes `eval-report.json`, and **spends budget**.
+- Capture reads photos too: the extraction model is a vision model (`qwen3-vl-30b-a3b-instruct`, ADR 0005). Try one with `python -m planner.cli llm-ping --extract --image notice.jpg "подпись"`.
+- Extraction quality: `cd backend && LLM_API_KEY=… EVAL_MODELS=qwen3-vl-30b-a3b-instruct,deepseek-v4.1-flash uv run pytest -m eval -s`. It runs the 30-message golden set (`tests/evals/extraction_cases.yaml`), prints accuracy and ₽ per call for each model, writes `eval-report.json`, and **spends budget**.
 - With `LLM_PROVIDER=fake`, each message becomes one task titled with its first line. Local dev, e2e and load tests use this.
 - See [ADR 0001](docs/adr/0001-llm-provider.md).
 

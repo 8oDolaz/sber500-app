@@ -53,7 +53,7 @@ None of these files are committed: they are gitignored because they hold secrets
 | `JWT_SECRET` | Random: `python3 -c "import secrets;print(secrets.token_urlsafe(48))"` | can stay empty (dev default) | **required**: the API refuses to start without it |
 | `LLM_PROVIDER` | — | `fake` (free) or `openai_compatible` | `openai_compatible` |
 | `LLM_API_KEY` | Sber500 organizers (`accelerator-…` key) | only with `openai_compatible` | **required** |
-| `LLM_MODEL_EXTRACTION` | A model from `GET /v1/models` on the proxy | `deepseek-v4.1-flash` | same, or the eval winner |
+| `LLM_MODEL_EXTRACTION` | A **vision** model from `GET /v1/models` on the proxy (reads photos, ADR 0005) | `qwen3-vl-30b-a3b-instruct` | the proxy's name for it (`check-models`) |
 | `LLM_PROGRAM_BUDGET_RUB` | Your program budget | `50000` | `75000` (total) |
 | `POSTGRES_PASSWORD` | Random | — (dev uses `kainem`) | **required** |
 | `DATABASE_URL` | Built from the password | `postgresql+asyncpg://kainem:kainem@localhost:5432/kainem` | `postgresql+asyncpg://kainem:<POSTGRES_PASSWORD>@postgres:5432/kainem` |

@@ -6,10 +6,11 @@ from typing import Any
 
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
-from aiogram.methods import SendMessage, TelegramMethod
-from aiogram.types import Chat, Message, Update, User
+from aiogram.methods import GetFile, SendMessage, TelegramMethod
+from aiogram.types import Chat, Document, File, Message, PhotoSize, Update, User
 
 _ids = itertools.count(1)
+FILE_BYTES = b"\xff\xd8\xff\xe0fake-jpeg"  # what every downloaded file contains
 
 
 class RecordingSession(BaseSession):
@@ -17,11 +18,16 @@ class RecordingSession(BaseSession):
         super().__init__()
         self.sent: list[TelegramMethod[Any]] = []
         self.returned: list[Any] = []
+        self.downloads: list[str] = []
 
     async def make_request(self, bot: Bot, method: TelegramMethod[Any], timeout: int | None = None) -> Any:  # noqa: ASYNC109 — aiogram's signature
         self.sent.append(method)
         result: Any = True
-        if isinstance(method, SendMessage):
+        if isinstance(method, GetFile):
+            result = File(
+                file_id=method.file_id, file_unique_id="u", file_size=len(FILE_BYTES), file_path="photos/file_1.jpg"
+            )
+        elif isinstance(method, SendMessage):
             result = Message(
                 message_id=next(_ids),
                 date=datetime.now(UTC),
@@ -31,9 +37,9 @@ class RecordingSession(BaseSession):
         self.returned.append(result)
         return result
 
-    async def stream_content(self, *args: Any, **kwargs: Any):  # pragma: no cover
-        raise NotImplementedError
-        yield b""
+    async def stream_content(self, *args: Any, **kwargs: Any):
+        self.downloads.append(kwargs.get("url", args[0] if args else ""))
+        yield FILE_BYTES
 
     async def close(self) -> None:
         pass
@@ -55,8 +61,11 @@ def message_update(
     forwarded_at: datetime | None = None,
     reply_to_message_id: int | None = None,
     photo: bool = False,
+    caption: str | None = None,
+    document_mime: str | None = None,
+    voice: bool = False,
 ) -> Update:
-    from aiogram.types import MessageOriginHiddenUser, PhotoSize
+    from aiogram.types import MessageOriginHiddenUser, Voice
 
     user = User(id=tg_user_id, is_bot=False, first_name=first_name, language_code="ru")
     chat = Chat(id=tg_user_id, type="private")
@@ -68,7 +77,19 @@ def message_update(
             message_id=reply_to_message_id, date=datetime.now(UTC), chat=chat, text="prompt"
         )
     if photo:
-        extra["photo"] = [PhotoSize(file_id="f", file_unique_id="u", width=1, height=1)]
+        # Telegram sends every size, small to large
+        extra["photo"] = [
+            PhotoSize(file_id=f"photo-{side}", file_unique_id=f"u{side}", width=side, height=side * 3 // 4)
+            for side in (90, 320, 800, 1280, 2560)
+        ]
+    if document_mime is not None:
+        extra["document"] = Document(
+            file_id="doc", file_unique_id="udoc", mime_type=document_mime, file_size=len(FILE_BYTES)
+        )
+    if voice:
+        extra["voice"] = Voice(file_id="voice", file_unique_id="uvoice", duration=3)
+    if caption is not None:
+        extra["caption"] = caption
     return Update(
         update_id=next(_ids),
         message=Message(message_id=next(_ids), date=datetime.now(UTC), chat=chat, from_user=user, text=text, **extra),
