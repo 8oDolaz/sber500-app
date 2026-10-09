@@ -109,17 +109,16 @@ Locally the bot runs in long polling mode (`make bot`). On a server it runs as a
 
 Locust scenarios in `backend/loadtest/`, run against the full stack with `infra/compose.loadtest.yml`. Results and commands are in [`docs/load-test.md`](docs/load-test.md).
 
-## Deploy (single VM)
+## Deploy (single VM, GitHub Actions)
 
-Full step-by-step guide: [`docs/deployment.md`](docs/deployment.md). In short, for a VM in a Russian cloud (152-FZ):
+Full step-by-step guide: [`docs/deployment.md`](docs/deployment.md) §5. In short, for a VM in a Russian cloud (152-FZ, e.g. Timeweb Cloud):
 
-```bash
-cp infra/.env.prod.example infra/.env.prod        # fill in the secrets; the file is gitignored
-docker compose -f infra/compose.prod.yml --env-file infra/.env.prod up -d --build
-docker compose -f infra/compose.prod.yml --env-file infra/.env.prod exec api python -m planner.cli set-webhook
-docker compose -f infra/compose.prod.yml --env-file infra/.env.prod exec api python -m planner.cli check-models
-```
+1. Prepare the VM once: `infra/deploy/bootstrap.sh` (Docker, `deploy` user, firewall).
+2. Fill `infra/.env.prod.example` and put it in the `PROD_ENV_FILE` secret of the GitHub `production`
+   environment, with `DEPLOY_HOST` and `DEPLOY_SSH_KEY`.
+3. Actions → **Deploy** → *Run workflow*. Pushes to `main` deploy automatically once configured.
+
+The workflow rsyncs the sources and runs `infra/deploy/deploy.sh` on the server: database backup,
+`docker compose up -d --build`, migrations, Telegram webhook, LLM prices, Grafana role, smoke test.
 
 - **TLS:** Caddy terminates it for `DOMAIN` (automatic certificates) and is the only public service. Grafana and Prometheus listen on `127.0.0.1`; reach them through an SSH tunnel.
-- **Dashboard access:** create the read-only role once with `infra/postgres/grafana-reader.sql`.
-- **LLM price fallback:** load the catalog prices once with `python -m planner.cli prices-sync --file prices/cloudru-2026-09-30.yaml`.

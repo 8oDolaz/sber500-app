@@ -11,8 +11,9 @@ Everything runs in Docker. You never install Python or Node on the server.
 | Docker with Compose v2 | yes | yes |
 | A Telegram bot | yes: a **dev** bot | yes: a **separate prod** bot (see below) |
 | Sber500 LLM key | optional (a fake LLM works without it) | yes |
-| A Linux VM (2 vCPU, 4 GB RAM is plenty) in a Russian cloud | — | yes (152-FZ) |
+| A Linux VM (2 vCPU, 4 GB RAM is plenty) in a Russian cloud, e.g. Timeweb Cloud | — | yes (152-FZ) |
 | A domain with an A record pointing at the VM | — | yes |
+| A GitHub `production` environment with the deploy secrets (section 5.4) | — | yes, for the Deploy workflow |
 
 **Use two different bots.** A bot token works either in polling mode (local) or with a webhook (server), not both at once. Setting a webhook stops local polling, and polling fails while a webhook is set.
 
@@ -121,86 +122,121 @@ docker compose -f infra/compose.yml --profile full up -d --build   # after pulli
 docker compose -f infra/compose.yml --profile full down -v         # stop and DELETE all local data
 ```
 
-## 5. Deploy to a server
+## 5. Deploy to a server (Timeweb Cloud + GitHub Actions)
 
-### 5.1 Prepare the VM
+Deploys are done by the **Deploy** workflow (`.github/workflows/deploy.yml`). It connects to the VM
+over SSH as an unprivileged `deploy` user, syncs the sources, writes `infra/.env.prod` from a GitHub
+secret, and runs `infra/deploy/deploy.sh` on the server. The VM only needs Docker: no Python, Node or
+git. Until the VM is configured in GitHub, the workflow skips itself on pushes to `main`.
 
-1. Install Docker Engine with the Compose plugin.
-2. Open inbound ports **22, 80, 443** only.
-3. Create a DNS A record `DOMAIN → <VM IP>`. Wait until `dig +short <DOMAIN>` returns the IP: Caddy needs it to get the TLS certificate.
-4. Get the code onto the server:
-   ```bash
-   git clone <repo> kainem && cd kainem && git checkout <branch or tag>
-   ```
+### 5.1 Create the VM
 
-### 5.2 Configure
+In the Timeweb Cloud panel: **Облачные серверы → Создать**.
+
+- OS: Ubuntu 24.04 (22.04 also works). Region: Russia (152-FZ). 2 vCPU / 4 GB RAM / 40 GB is plenty.
+- Add your own SSH key to the server so you can log in as `root` for the one-time setup below.
+- In the panel's firewall (if you attach one), allow inbound **22, 80, 443** only.
+- Create a DNS A record `DOMAIN → <VM IP>` (Timeweb DNS or your registrar). Caddy needs it to get the
+  TLS certificate; check with `dig +short <DOMAIN>`.
+
+### 5.2 Prepare the VM (once)
+
+Generate a key pair for GitHub Actions on your computer. The private key goes to GitHub, the public one to the VM:
 
 ```bash
-cp infra/.env.prod.example infra/.env.prod
-chmod 600 infra/.env.prod
+ssh-keygen -t ed25519 -N "" -C kainem-deploy -f ~/.ssh/kainem_deploy
 ```
 
-Fill in every setting marked **required** in section 3. Check two things:
+Run the bootstrap script as root. It installs Docker + Compose from Ubuntu's repositories, configures a
+Docker Hub mirror (Docker Hub throttles Russian IPs), creates the `deploy` user with your public key,
+creates `/opt/kainem`, and enables a firewall for 22/80/443:
+
+```bash
+scp infra/deploy/bootstrap.sh root@<VM_IP>:/root/
+ssh root@<VM_IP> "bash /root/bootstrap.sh \"$(cat ~/.ssh/kainem_deploy.pub)\""
+```
+
+Then record the VM's host key for strict checking in the workflow:
+
+```bash
+ssh-keyscan <VM_IP>          # copy the output: it goes into DEPLOY_KNOWN_HOSTS below
+```
+
+### 5.3 Prepare `infra/.env.prod`
+
+On your computer, not on the server:
+
+```bash
+cp infra/.env.prod.example /tmp/kainem.env.prod
+```
+
+Fill in every setting marked **required** in section 3. Check three things:
 - the password in `DATABASE_URL` equals `POSTGRES_PASSWORD`;
-- `PUBLIC_APP_URL` is `https://<DOMAIN>`.
+- `PUBLIC_APP_URL` is `https://<DOMAIN>` and `DOMAIN` matches the A record;
+- `BOT_TOKEN` / `BOT_USERNAME` are the **prod** bot.
 
-### 5.3 Start
+The workflow writes this file to `/opt/kainem/infra/.env.prod` (mode 600) on every deploy, so the
+secret in GitHub is the source of truth: to change a setting, update the secret and redeploy.
 
-```bash
-docker compose -f infra/compose.prod.yml --env-file infra/.env.prod up -d --build
-```
+### 5.4 Configure GitHub
 
-This starts `caddy` (public, gets the TLS certificate), `web`, `api` (2 workers, migrates on start), `worker`, `postgres`, `redis`, `prometheus` and `grafana`. On the server there is no `bot` container: the bot runs inside the API through a webhook.
+**Settings → Environments → New environment → `production`.** Optionally add yourself as a required
+reviewer: every deploy then waits for your approval. Then add:
 
-### 5.4 One-time setup after the first start
+| Kind | Name | Value |
+|---|---|---|
+| Variable | `DEPLOY_HOST` | VM IP (or hostname) |
+| Variable | `DEPLOY_KNOWN_HOSTS` | the `ssh-keyscan` output from 5.2 (recommended; without it the first connection trusts the host blindly) |
+| Variable | `DEPLOY_USER` | optional, default `deploy` |
+| Variable | `DEPLOY_PORT` | optional, default `22` |
+| Variable | `DEPLOY_PATH` | optional, default `/opt/kainem` |
+| Secret | `DEPLOY_SSH_KEY` | contents of `~/.ssh/kainem_deploy` (the private key, all lines) |
+| Secret | `PROD_ENV_FILE` | contents of your filled-in `.env.prod` (the whole file) |
 
-Define a shortcut first:
+### 5.5 Deploy
 
-```bash
-DC="docker compose -f infra/compose.prod.yml --env-file infra/.env.prod"
-```
+- **Manually:** Actions → **Deploy** → *Run workflow* → pick the branch (`dev` for now, or a tag).
+- **Automatically:** every push to `main` deploys. The branch is empty today; merge `dev` into `main`
+  when you want "push to main = release".
 
-1. **Point Telegram at the server.** This registers `https://<DOMAIN>/api/webhooks/telegram` with the webhook secret:
-   ```bash
-   $DC exec api python -m planner.cli set-webhook
-   ```
-2. **Check the LLM models exist on the proxy.** This prints the available models and fails if a configured one is missing:
-   ```bash
-   $DC exec api python -m planner.cli check-models
-   ```
-   To see a real answer, cost included, run `$DC exec api python -m planner.cli llm-ping "Привет"`. If the proxy times out during the TLS handshake, check for a VPN in TUN mode: route `shared1.multitool.works` directly.
-3. **Load LLM prices.** They are the fallback when the proxy doesn't report a cost:
-   ```bash
-   $DC exec api python -m planner.cli prices-sync --file prices/cloudru-2026-09-30.yaml
-   ```
-4. **Create the read-only database role for Grafana.** The password must equal `GRAFANA_PG_PASSWORD`:
-   ```bash
-   $DC exec -T postgres psql -U kainem -d kainem -v password='<GRAFANA_PG_PASSWORD>' < infra/postgres/grafana-reader.sql
-   $DC restart grafana
-   ```
+What a run does, in order (`infra/deploy/deploy.sh`):
 
-### 5.5 Check
+1. `pg_dump` of the database into `/opt/kainem/backups/` (last 5 kept), skipped on the first deploy.
+2. `docker compose build --pull` for `api`, `worker` and `web` with `APP_VERSION` = the git tag or short SHA.
+3. `docker compose up -d --remove-orphans`: the API applies migrations on start.
+4. Waits until the API container is healthy, then `set-webhook`, `prices-sync --file …`, `check-models`
+   (a missing model is a warning, not a failure), and creates or refreshes the `grafana_reader` role.
+5. `curl https://<DOMAIN>/api/readyz` from the server, then again from GitHub. Fails if `ok` is not `true`.
 
-```bash
-$DC ps                                   # everything "Up" / "healthy"
-curl https://<DOMAIN>/api/readyz         # "ok": true, llm_models.ok: true
-```
+A failed run leaves the previous containers running only if it failed before step 3; after that, fix
+and redeploy. Logs: `ssh deploy@<VM_IP>` then `cd /opt/kainem && docker compose -f infra/compose.prod.yml --env-file infra/.env.prod logs -f api`.
+
+### 5.6 Check
 
 - Open `https://<DOMAIN>` on a phone: the welcome screen appears. Register through the prod bot.
 - **Dashboards:** Grafana and Prometheus are not public. Use a tunnel:
   ```bash
-  ssh -L 3000:127.0.0.1:3000 <user>@<VM>
+  ssh -L 3000:127.0.0.1:3000 deploy@<VM_IP>
   ```
   Then open `http://localhost:3000` and sign in as `admin` with `GRAFANA_ADMIN_PASSWORD`. The dashboards are in the "kainem" folder.
 
-### 5.6 Update and back up
+### 5.7 Manual operation on the server
+
+Everything the workflow does can be done by hand as the `deploy` user:
 
 ```bash
-git pull && $DC up -d --build            # new version; migrations run automatically on API start
+cd /opt/kainem
+DC="docker compose -f infra/compose.prod.yml --env-file infra/.env.prod"
+APP_VERSION=manual bash infra/deploy/deploy.sh   # the same steps as the workflow
+$DC ps                                            # everything "Up" / "healthy"
+$DC logs -f api
+$DC exec api python -m planner.cli check-models
 ```
 
-- **Back up** the database daily, e.g. from cron: `$DC exec -T postgres pg_dump -U kainem kainem | gzip > backup-$(date +%F).sql.gz`. Keep copies off the VM.
+- **Back up** the database daily, e.g. from cron: `$DC exec -T postgres pg_dump -U kainem kainem | gzip > backup-$(date +%F).sql.gz`. Keep copies off the VM. The pre-deploy dumps in `backups/` are a safety net, not a backup strategy.
+- **Restore:** `gunzip -c backups/<file>.sql.gz | $DC exec -T postgres psql -U kainem kainem` (stop `api` and `worker` first).
 - **Never** apply `infra/compose.loadtest.yml` on a server: it turns on test endpoints and removes rate limits.
+- Rotating `BOT_WEBHOOK_SECRET` or `JWT_SECRET`: update the `PROD_ENV_FILE` secret and redeploy; the webhook is re-registered on every deploy.
 
 ## 6. Troubleshooting
 
@@ -214,3 +250,7 @@ git pull && $DC up -d --build            # new version; migrations run automatic
 | `readyz` shows `llm_models.ok: false` | A configured model was removed from the proxy: pick one from `check-models` output. |
 | Caddy can't get a certificate | DNS doesn't point at the VM yet, or ports 80/443 are closed. |
 | «Поделиться» does nothing | Inline mode is off in BotFather (step 2.2). |
+| Deploy workflow is "skipped" | `DEPLOY_HOST`, `DEPLOY_SSH_KEY` or `PROD_ENV_FILE` is missing in the `production` environment (section 5.4). |
+| Deploy fails at "Set up SSH" | Wrong `DEPLOY_SSH_KEY` (paste the whole private key), the public key isn't in `/home/deploy/.ssh/authorized_keys`, or `DEPLOY_KNOWN_HOSTS` is from another host. |
+| Deploy fails at "Smoke test" but `$DC ps` is healthy | DNS or 80/443 (Caddy has no certificate yet). Fix and re-run the workflow. |
+| `docker compose build` is slow or pulls fail on the VM | Docker Hub throttling. `bootstrap.sh` sets registry mirrors in `/etc/docker/daemon.json`; check they are still reachable. |
