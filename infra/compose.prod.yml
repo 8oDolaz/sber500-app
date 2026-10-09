@@ -2,6 +2,7 @@
 #   cp infra/.env.prod.example infra/.env.prod   # fill in secrets
 #   docker compose -f infra/compose.prod.yml --env-file infra/.env.prod up -d --build
 # Only Caddy is public (80/443). Grafana and Prometheus listen on 127.0.0.1: use an SSH tunnel.
+# The bot long-polls Telegram through the xray proxy (ADR 0004); xray reads infra/xray/config.json.
 name: kainem
 services:
   postgres:
@@ -47,6 +48,21 @@ services:
       APP_VERSION: ${APP_VERSION:-0.1.0}
     command: ["python", "-m", "planner.entrypoints.worker"]
     depends_on: {api: {condition: service_healthy}}
+  bot:
+    build: {context: ../backend}
+    restart: unless-stopped
+    env_file: [.env.prod]
+    environment:
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+    command: ["python", "-m", "planner.entrypoints.bot"]
+    depends_on: {api: {condition: service_healthy}, xray: {condition: service_started}}
+  xray:
+    # VLESS client: a SOCKS proxy on xray:1080, reachable only inside the compose network.
+    image: ghcr.io/xtls/xray-core:26.3.27
+    restart: unless-stopped
+    command: ["run", "-c", "/etc/xray/config.json"]
+    volumes:
+      - ./xray/config.json:/etc/xray/config.json:ro
   web:
     build:
       context: ../frontend

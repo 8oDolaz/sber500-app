@@ -1,15 +1,25 @@
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 
 from planner.bootstrap import Container
 from planner.entrypoints.bot import capture, handlers
-from planner.entrypoints.bot.middlewares import ActivityMiddleware, DeliveryErrorsMiddleware, MetricsMiddleware
+from planner.entrypoints.bot.middlewares import (
+    ActivityMiddleware,
+    DeliveryErrorsMiddleware,
+    MetricsMiddleware,
+    RequestMetricsMiddleware,
+)
 from planner.settings import Settings
 
 
 def build_bot(settings: Settings) -> Bot | None:
     token = settings.bot_token.get_secret_value()
-    return Bot(token, default=DefaultBotProperties(parse_mode="HTML")) if token else None
+    if not token:
+        return None
+    session = AiohttpSession(proxy=settings.telegram_proxy) if settings.telegram_proxy else AiohttpSession()
+    session.middleware(RequestMetricsMiddleware())
+    return Bot(token, session=session, default=DefaultBotProperties(parse_mode="HTML"))
 
 
 def build_dispatcher(container: Container) -> Dispatcher:

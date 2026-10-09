@@ -331,6 +331,34 @@
           "legendFormat": "{{reason}}"
         }
       ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Bot API calls through the proxy",
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate(telegram_api_requests_total[5m]))",
+          "legendFormat": "{{status}}"
+        }
+      ]
     }
   ],
   "editable": true

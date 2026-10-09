@@ -1,0 +1,77 @@
+{
+  "log": {"loglevel": "warning"},
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "listen": "0.0.0.0",
+      "port": 1080,
+      "protocol": "socks",
+      "settings": {"udp": false}
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "vless-1",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "vpn1.example.com",
+            "port": 443,
+            "users": [{"id": "00000000-0000-0000-0000-000000000000", "encryption": "none", "flow": "xtls-rprx-vision"}]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "www.example.com",
+          "fingerprint": "chrome",
+          "publicKey": "REPLACE_WITH_pbk_FROM_THE_LINK",
+          "shortId": "REPLACE_WITH_sid_FROM_THE_LINK"
+        }
+      }
+    },
+    {
+      "tag": "vless-2",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "vpn2.example.com",
+            "port": 443,
+            "users": [{"id": "00000000-0000-0000-0000-000000000000", "encryption": "none", "flow": "xtls-rprx-vision"}]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "www.example.com",
+          "fingerprint": "chrome",
+          "publicKey": "REPLACE_WITH_pbk_FROM_THE_LINK",
+          "shortId": "REPLACE_WITH_sid_FROM_THE_LINK"
+        }
+      }
+    }
+  ],
+  "burstObservatory": {
+    "subjectSelector": ["vless-"],
+    "pingConfig": {
+      "destination": "https://api.telegram.org/",
+      "interval": "1m",
+      "timeout": "10s",
+      "sampling": 3
+    }
+  },
+  "routing": {
+    "balancers": [
+      {"tag": "telegram", "selector": ["vless-"], "strategy": {"type": "leastPing"}, "fallbackTag": "vless-1"}
+    ],
+    "rules": [
+      {"type": "field", "inboundTag": ["socks-in"], "balancerTag": "telegram"}
+    ]
+  }
+}
