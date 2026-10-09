@@ -29,8 +29,8 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "/index.html",
-        // The API and bot webhooks must never be served from the SW cache.
-        navigateFallbackDenylist: [/^\/api\//],
+        // The API and bot webhooks must never be served from the SW cache; Grafana (served by Caddy) is not the app.
+        navigateFallbackDenylist: [/^\/api\//, /^\/grafana(\/|$)/],
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         // Russian UI: precache only Latin/Cyrillic Inter; other subsets load on demand via unicode-range.
         globIgnores: ["**/inter-{greek,greek-ext,vietnamese}-*.woff2"],

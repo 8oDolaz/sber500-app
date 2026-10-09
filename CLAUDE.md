@@ -42,7 +42,7 @@ backend/                 Python 3.13 · uv · FastAPI · aiogram 3 · SQLAlchemy
     bootstrap.py         composition root: builds the Container (the only module that imports everything)
     settings.py          pydantic-settings; every env var is declared here
     models.py            imports every table module so Base.metadata is complete
-    cli.py               ops commands: python -m planner.cli <export-openapi|prices-sync|check-models|set-webhook|bot-check|cost-report>
+    cli.py               ops commands: python -m planner.cli <export-openapi|prices-sync|check-models|proxy-spend|set-webhook|bot-check|cost-report>
   migrations/            Alembic (env.py, versions/YYYYMMDD_<rev>_<slug>.py)
   tests/{unit,integration,evals}
   loadtest/locustfile.py
@@ -112,11 +112,13 @@ Run `make lint && make test` locally before pushing. `pytest -m eval` is exclude
 `frontend/` and `infra/`, writes `infra/.env.prod` from the `PROD_ENV_FILE` secret and
 `infra/xray/config.json` from the `XRAY_CONFIG` secret, and runs
 `infra/deploy/deploy.sh` on the server (pg_dump → `compose build --pull` → `up -d` → wait for the API
-→ `bot-check`, `prices-sync`, `check-models`, Grafana role → `/api/readyz` smoke test). It runs on
+→ Caddy reload → `bot-check`, `prices-sync`, `check-models`, Grafana role → `/api/readyz` smoke test). It runs on
 pushes to `main` and manually; without `DEPLOY_HOST`, `DEPLOY_SSH_KEY`, `PROD_ENV_FILE` and `XRAY_CONFIG` in the
 GitHub `production` environment it skips. `deploy.sh` must stay idempotent: every step may run again
 on the next deploy. New production settings go into `infra/.env.prod.example` (the only committed
 `.env.*` file besides `backend/.env.example`). Guide: `docs/deployment.md` §5.
+Caddy is the only public service: the PWA/API at `https://$DOMAIN/` and Grafana at `https://$DOMAIN/grafana/`
+(sign-in required, accounts by admin invite only; Prometheus stays on `127.0.0.1`).
 
 ## Backend conventions
 
@@ -226,7 +228,7 @@ Use modern typing (`X | None`, `list[...]`, `StrEnum`, PEP 695 generics).
   `PlatformAdapter` in `packages/platform`; do not call browser APIs directly from screens.
 - Design tokens are CSS variables in `packages/ui-kit/src/tokens.css`; components in `components.tsx`.
 - Analytics: `services.analytics.track("event_name", props)` with names from the backend catalog.
-- The service worker must never cache `/api/*` (`navigateFallbackDenylist` in `apps/pwa/vite.config.ts`).
+- The service worker must never cache `/api/*` or answer for `/grafana/*` (`navigateFallbackDenylist` in `apps/pwa/vite.config.ts`).
 
 ## Testing conventions
 

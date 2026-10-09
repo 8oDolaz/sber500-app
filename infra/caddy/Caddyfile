@@ -1,6 +1,16 @@
-# TLS termination (automatic Let's Encrypt certificates) in front of the PWA/API nginx.
+# TLS termination (automatic Let's Encrypt certificates) in front of the PWA/API nginx and Grafana.
 # Caddy replaces any client-supplied X-Forwarded-For with the real peer address.
 {$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy web:80
+
+	# Grafana at https://{$DOMAIN}/grafana/ (GF_SERVER_SERVE_FROM_SUB_PATH in compose.prod.yml).
+	# Sign-in required: accounts are created by the admin, self sign-up and anonymous access are off.
+	redir /grafana /grafana/
+	handle /grafana/* {
+		reverse_proxy grafana:3000
+	}
+
+	handle {
+		reverse_proxy web:80
+	}
 }

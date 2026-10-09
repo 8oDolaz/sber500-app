@@ -55,6 +55,15 @@ async def check_models() -> None:
         raise SystemExit(1)
 
 
+async def proxy_spend() -> None:
+    from planner.modules.analytics.proxy_spend import fetch_key_spend, proxy_root
+
+    s = get_settings()
+    key = await fetch_key_spend(s.llm_base_url, s.llm_api_key.get_secret_value())
+    budget = f"{key.max_budget_rub} ₽" if key.max_budget_rub is not None else "not set on the key"
+    print(f"{proxy_root(s.llm_base_url)}/key/info\nspend: {key.spend_rub} ₽\nmax budget: {budget}")
+
+
 async def ping(llm: "LLMGateway", request: "LLMRequest") -> str:
     """One request through the gateway (ledger, metrics, quota), formatted for a human."""
     started = time.perf_counter()
@@ -207,6 +216,7 @@ def main() -> None:
     p = sub.add_parser("prices-sync", help="sync model_prices from the proxy /model/info or a YAML file")
     p.add_argument("--file", type=Path)
     sub.add_parser("check-models", help="verify configured LLM models exist on the proxy")
+    sub.add_parser("proxy-spend", help="what the proxy says our API key has spent (/key/info)")
     p = sub.add_parser("llm-ping", help="send one message to the configured LLM and print the reply, tokens and ₽")
     p.add_argument("text")
     p.add_argument("--model", help="default: LLM_MODEL_CHAT (LLM_MODEL_EXTRACTION with --extract)")
@@ -226,6 +236,8 @@ def main() -> None:
             asyncio.run(prices_sync(args.file))
         case "check-models":
             asyncio.run(check_models())
+        case "proxy-spend":
+            asyncio.run(proxy_spend())
         case "llm-ping":
             asyncio.run(
                 llm_ping(args.text, model=args.model, system=args.system, json_mode=args.json, extract=args.extract)

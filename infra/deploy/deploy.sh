@@ -3,7 +3,7 @@
 #   APP_VERSION=<tag-or-sha> bash infra/deploy/deploy.sh
 #
 # Steps: back up Postgres → build images → start/replace containers (the API applies migrations on
-# start) → wait for the API to be healthy → check the bot reaches Telegram → load LLM prices →
+# start) → wait for the API to be healthy → reload Caddy → check the bot reaches Telegram → load LLM prices →
 # make sure the Grafana read-only role exists → smoke test → prune old images.
 # Everything is idempotent: running it twice in a row is safe.
 set -euo pipefail
@@ -60,6 +60,10 @@ if [ "${status:-}" != "healthy" ]; then
   exit 1
 fi
 echo "api is healthy"
+
+log "Reloading Caddy (picks up Caddyfile changes; a no-op when nothing changed)"
+"${DC[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile \
+  || echo "warning: caddy reload failed; check: \$DC logs caddy" >&2
 
 log "Checking the bot reaches Telegram (it long-polls through xray, ADR 0004)"
 [ -n "$(env_value TELEGRAM_PROXY)" ] || echo "warning: TELEGRAM_PROXY is empty: the bot connects to Telegram directly" >&2

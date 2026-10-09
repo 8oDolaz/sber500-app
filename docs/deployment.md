@@ -250,7 +250,7 @@ What a run does, in order (`infra/deploy/deploy.sh`):
 1. `pg_dump` of the database into `/opt/kainem/backups/` (last 5 kept), skipped on the first deploy.
 2. `docker compose build --pull` for `api`, `worker`, `bot` and `web` with `APP_VERSION` = the git tag or short SHA.
 3. `docker compose up -d --remove-orphans`: the API applies migrations on start.
-4. Waits until the API container is healthy, then `bot-check` (calls the Bot API through the proxy;
+4. Waits until the API container is healthy, reloads Caddy (picks up `Caddyfile` changes), then `bot-check` (calls the Bot API through the proxy;
    a failure is a warning, see section 6), `prices-sync --file …`, `check-models` (a missing model is a
    warning, not a failure), and creates or refreshes the `grafana_reader` role.
 5. `curl https://<DOMAIN>/api/readyz` from the server, then again from GitHub. Fails if `ok` is not `true`.
@@ -261,11 +261,23 @@ and redeploy. Logs: `ssh deploy@<VM_IP>` then `cd /opt/kainem && docker compose 
 ### 5.6 Check
 
 - Open `https://<DOMAIN>` on a phone: the welcome screen appears. Register through the prod bot.
-- **Dashboards:** Grafana and Prometheus are not public. Use a tunnel:
-  ```bash
-  ssh -L 3000:127.0.0.1:3000 deploy@<VM_IP>
-  ```
-  Then open `http://localhost:3000` and sign in as `admin` with `GRAFANA_ADMIN_PASSWORD`. The dashboards are in the "kainem" folder.
+- **Dashboards:** open `https://<DOMAIN>/grafana/` and sign in as `admin` with `GRAFANA_ADMIN_PASSWORD`.
+  The dashboards are in the "kainem" folder. Nothing is visible without signing in: self sign-up and
+  anonymous access are off. If Caddy is down, the SSH tunnel still works:
+  `ssh -N -L 3000:127.0.0.1:3000 deploy@<VM_IP>`, then `http://localhost:3000/grafana/`.
+  Prometheus is not public; tunnel port 9090 the same way.
+- **Accounts for other people** (e.g. the accelerator organizers), as `admin`:
+  1. *Administration → Users and access → Users → Invite* (or *Organization users → Invite*): enter
+     their email or a login, role **Viewer**, and **turn off "Send invite email"** (no SMTP is configured).
+  2. Open *Pending invites*, **Copy invite** and send them the link. It opens
+     `https://<DOMAIN>/grafana/invite/…`, where they choose their own username and password. The link
+     works once and expires after 72 hours (`GF_USERS_USER_INVITE_MAX_LIFETIME_DURATION`).
+
+  Grafana has no "must change password at next sign-in" flag. If you create the user with a password
+  yourself instead (*Users → New user*), ask them to change it under *Profile → Change password*; the
+  invite link avoids sharing a password at all. Viewers see every dashboard in the organization and can
+  run read-only queries against the data sources: Postgres is the `grafana_reader` role, which can read
+  only the `metrics_*` views (aggregates, no personal data). Remove access under *Users → … → Delete user*.
 
 ### 5.7 Manual operation on the server
 
@@ -298,6 +310,8 @@ $DC exec api python -m planner.cli check-models
 | API exits with "JWT_SECRET must be set" | Set `JWT_SECRET` in `infra/.env.prod`. |
 | `readyz` shows `llm_models.ok: false` | A configured model was removed from the proxy: pick one from `check-models` output. |
 | Caddy can't get a certificate | DNS doesn't point at the VM yet, or ports 80/443 are closed. |
+| `https://<DOMAIN>/grafana/` shows the app instead of Grafana | The old service worker answered: reload once (the new one excludes `/grafana`). If it persists, check `$DC logs caddy grafana`. |
+| "LLM spend (proxy /key/info)" is empty | The worker refreshes it every 5 minutes. Run `$DC exec worker python -m planner.cli proxy-spend`: an HTTP error means the proxy doesn't expose `/key/info` for this key. |
 | «Поделиться» does nothing | Inline mode is off in BotFather (step 2.2). |
 | Deploy workflow is "skipped" | `DEPLOY_HOST`, `DEPLOY_SSH_KEY`, `PROD_ENV_FILE` or `XRAY_CONFIG` is missing in the `production` environment (section 5.4). |
 | Deploy fails at "Set up SSH" | Wrong `DEPLOY_SSH_KEY` (paste the whole private key), the public key isn't in `/home/deploy/.ssh/authorized_keys`, or `DEPLOY_KNOWN_HOSTS` is from another host. |

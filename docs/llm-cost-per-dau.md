@@ -74,7 +74,8 @@ Not every active user forwards messages. Some only open the app to look at the l
 
 Every provider call writes a row to `llm_usage`: tokens, latency, status, and **the cost the proxy reports** (`x-litellm-response-cost`, what the budget is actually charged). Rows fall back to the `model_prices` table when the proxy doesn't report a cost.
 
-- **Dashboard:** "kainem — product" → "₽ per DAU and per active family" and "LLM cost per day by feature".
+- **Dashboard:** "kainem — product" → "₽ per DAU and per active family", "LLM cost per day by feature" and "LLM tokens per day". "kainem — technical" → "LLM tokens, total" and "LLM spend (proxy /key/info)": the total the proxy itself has charged to our key, which also counts evals, `llm-ping` and any other use of the key, so it can exceed the ledger.
+- **Proxy total:** `python -m planner.cli proxy-spend` prints what LiteLLM `GET /key/info` reports for `LLM_API_KEY` (the worker exports it as `llm_proxy_spend_rub` every 5 minutes).
 - **CLI:** `python -m planner.cli cost-report --days 7` prints daily DAU, calls, ₽ and ₽/DAU, then tokens and ₽ per call by model.
 - **SQL:** views `metrics_cost_per_dau` and `metrics_llm_cost`. They exclude test users, the fake provider and eval runs. Calls with no known cost are counted in `unpriced_calls`, so a gap in pricing is visible rather than silently zero.
 

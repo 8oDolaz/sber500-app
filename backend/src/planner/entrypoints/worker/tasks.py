@@ -6,7 +6,9 @@ from sqlalchemy import text
 
 from planner.bootstrap import Container, build_container
 from planner.infra.jobs import job_app
+from planner.infra.telemetry import LLM_PROXY_MAX_BUDGET_RUB, LLM_PROXY_SPEND_RUB
 from planner.modules.analytics.price_sync import apply_quotes, fetch_from_proxy
+from planner.modules.analytics.proxy_spend import fetch_key_spend
 from planner.settings import get_settings
 
 log = structlog.get_logger(__name__)
@@ -57,6 +59,24 @@ async def purge_outbox(timestamp: int) -> None:
 async def check_llm_spend(timestamp: int) -> None:
     spent = await container().spend_monitor.check()
     log.info("llm.spend_checked", spent_rub=str(spent))
+
+
+@job_app.periodic(cron="*/5 * * * *", periodic_id="check_llm_proxy_spend")
+@job_app.task(queue="maintenance")
+async def check_llm_proxy_spend(timestamp: int) -> None:
+    """The proxy's own total for our key (Grafana "LLM spend (proxy)"); the ledger total is check_llm_spend."""
+    s = get_settings()
+    if s.llm_provider != "openai_compatible":
+        return
+    try:
+        key = await fetch_key_spend(s.llm_base_url, s.llm_api_key.get_secret_value())
+    except Exception as exc:  # noqa: BLE001 — informational only; the ledger total and budget alerts still work
+        log.warning("llm.proxy_spend_failed", error=repr(exc))
+        return
+    LLM_PROXY_SPEND_RUB.set(float(key.spend_rub))
+    if key.max_budget_rub is not None:
+        LLM_PROXY_MAX_BUDGET_RUB.set(float(key.max_budget_rub))
+    log.info("llm.proxy_spend_checked", spend_rub=str(key.spend_rub), max_budget_rub=str(key.max_budget_rub))
 
 
 @job_app.periodic(cron="30 3 * * *", periodic_id="sync_model_prices")

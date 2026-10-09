@@ -50,7 +50,7 @@ flowchart LR
 
 ## 2. Deployment
 
-`infra/compose.prod.yml` runs everything on one VM in a Russian cloud (152-FZ). Only Caddy is public; Grafana and Prometheus listen on `127.0.0.1` and are reached through an SSH tunnel. Telegram is blocked in Russia, so the bot long-polls the Bot API through a VLESS proxy instead of receiving a webhook (ADR 0004).
+`infra/compose.prod.yml` runs everything on one VM in a Russian cloud (152-FZ). Only Caddy is public; it also serves Grafana at `/grafana/` (sign-in required). Prometheus listens on `127.0.0.1` and is reached through an SSH tunnel. Telegram is blocked in Russia, so the bot long-polls the Bot API through a VLESS proxy instead of receiving a webhook (ADR 0004).
 
 | Container | Role | Scales by |
 |---|---|---|
