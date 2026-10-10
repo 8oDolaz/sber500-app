@@ -45,17 +45,6 @@ export const ru = {
     },
     gotIt: "Понятно",
   },
-  home: {
-    howTo: "Как пользоваться",
-    sections: {
-      tasks: "Задачи",
-      events: "События",
-      third: "я не помню какая третья категор", // TODO(design): real name of the third category
-    },
-    emptyHint: "Перешлите боту сообщение или фото — задача или событие появится здесь",
-    markDone: "Отметить выполненной",
-    markUndone: "Вернуть в работу",
-  },
   help: {
     back: "Назад",
     title: "Как пользоваться",

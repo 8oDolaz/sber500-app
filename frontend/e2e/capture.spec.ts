@@ -8,7 +8,7 @@ test("forwarded message → «Сохранить» → task on the main screen �
   await page.goto(`/auth/tg?token=${start.magic_token}`);
   await page.getByRole("button", { name: "В семью" }).click();
   await expect(page).toHaveURL(/\/home$/);
-  await expect(page.getByText(/Перешлите боту сообщение/)).toBeVisible();
+  await expect(page.getByText("Задач пока нет")).toBeVisible();
 
   // In the bot: forward a message, get a draft card, press «Сохранить» (the fake LLM makes it a task).
   const captured = await (
@@ -27,8 +27,8 @@ test("forwarded message → «Сохранить» → task on the main screen �
   await expect(page.getByText("забрать посылку на почте")).toBeVisible();
   await page.screenshot({ path: "e2e/screens/D-home-items.png", fullPage: true });
 
-  await page.getByRole("button", { name: "Отметить выполненной" }).click();
-  await expect(page.getByRole("button", { name: "Вернуть в работу" })).toBeVisible();
+  await page.getByRole("checkbox", { name: /Отметить выполненной/ }).click();
+  await expect(page.getByRole("checkbox")).toBeChecked();
   await page.reload();
   await expect(page.getByText("забрать посылку на почте")).toHaveCount(0);
 });

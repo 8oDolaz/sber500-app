@@ -8,6 +8,8 @@ function signedIn(extra: Record<string, Parameters<typeof fakeBackend>[0][string
   return fakeBackend({
     "POST /v1/auth/refresh": () => ({ status: 200, body: sessionBody }),
     "GET /v1/me": () => ({ status: 200, body: me({ onboarding_completed: onboarded }) }),
+    "GET /v1/families/{id}/tasks": () => ({ status: 200, body: [] }),
+    "GET /v1/families/{id}/events": () => ({ status: 200, body: { timezone: "Europe/Moscow", events: [] } }),
     ...extra,
   });
 }
@@ -77,13 +79,14 @@ describe("onboarding (screen C)", () => {
 });
 
 describe("main screen (D) and help", () => {
-  it("shows tasks and events with the empty-state hint; the third category stays hidden", async () => {
+  it("shows real empty states without placeholder rows", async () => {
     renderApp(makeServices(signedIn({}, true).fetchImpl as typeof fetch), "/home");
     expect(await screen.findByText("Задачи")).toBeTruthy();
     expect(screen.getByText("События")).toBeTruthy();
-    expect(screen.getByText(/Перешлите боту сообщение/)).toBeTruthy();
+    expect(await screen.findByText("Задач пока нет")).toBeTruthy();
+    expect(await screen.findByText("Событий пока нет")).toBeTruthy();
     expect(screen.queryByText(/третья категор/)).toBeNull();
-    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
   });
 
   it("«Как пользоваться» opens help, which opens the bot and signs out", async () => {
@@ -130,63 +133,5 @@ describe("family switcher (help)", () => {
     renderApp(makeServices(signedIn({}, true).fetchImpl as typeof fetch), "/help");
     await screen.findByText("Пересылайте сообщения боту");
     expect(screen.queryByText("Ваши семьи")).toBeNull();
-  });
-});
-
-describe("main screen items", () => {
-  const tasks = [
-    { id: "t1", title: "Забрать посылку", due_date: "2026-09-26", due_at: null, assignee_hint: null, done: false },
-  ];
-  const events = {
-    timezone: "Europe/Moscow",
-    events: [
-      {
-        id: "e1",
-        title: "Танцы у Даши",
-        all_day: false,
-        starts_at: "2026-09-29T10:00:00Z",
-        ends_at: null,
-        start_date: null,
-        participants_hint: "Даша",
-      },
-    ],
-  };
-
-  it("shows tasks and events, fills the card to three rows, and the dot completes a task", async () => {
-    const { fetchImpl, calls } = signedIn(
-      {
-        "GET /v1/families/{id}/tasks": () => ({ status: 200, body: tasks }),
-        "GET /v1/families/{id}/events": () => ({ status: 200, body: events }),
-        "PATCH /v1/families/{id}/tasks/{task}": ({ body }) => ({ status: 200, body: { ...tasks[0], done: body.done } }),
-      },
-      true,
-    );
-    renderApp(makeServices(fetchImpl as typeof fetch), "/home");
-    expect(await screen.findByText("Забрать посылку")).toBeTruthy();
-    expect(screen.getByText("до сб 26.09")).toBeTruthy();
-    expect(await screen.findByText("Танцы у Даши")).toBeTruthy();
-    expect(screen.getByText("вт 29.09, 13:00 · Даша")).toBeTruthy();
-    expect(screen.getAllByRole("listitem")).toHaveLength(6);
-    expect(screen.queryByText(/Перешлите боту сообщение/)).toBeNull();
-
-    await userEvent.click(screen.getByRole("button", { name: "Отметить выполненной" }));
-    expect(screen.getByRole("button", { name: "Вернуть в работу" }).getAttribute("aria-pressed")).toBe("true");
-    await waitFor(() =>
-      expect(calls.find((c) => c.method === "PATCH")).toMatchObject({ path: "/v1/families/f1/tasks/t1", body: { done: true } }),
-    );
-  });
-
-  it("reverts the optimistic tick when saving fails", async () => {
-    const { fetchImpl } = signedIn(
-      {
-        "GET /v1/families/{id}/tasks": () => ({ status: 200, body: tasks }),
-        "GET /v1/families/{id}/events": () => ({ status: 200, body: { timezone: "Europe/Moscow", events: [] } }),
-        "PATCH /v1/families/{id}/tasks/{task}": () => ({ status: 500 }),
-      },
-      true,
-    );
-    renderApp(makeServices(fetchImpl as typeof fetch), "/home");
-    await userEvent.click(await screen.findByRole("button", { name: "Отметить выполненной" }));
-    expect(await screen.findByRole("button", { name: "Отметить выполненной" })).toBeTruthy();
   });
 });

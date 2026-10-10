@@ -49,7 +49,7 @@ test("leader: welcome → Telegram → back in the PWA with a session that survi
 
   await page.getByRole("button", { name: "В семью" }).click();
   await expect(page).toHaveURL(/\/home$/);
-  await expect(page.getByRole("heading", { name: "Задачи" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Задач пока нет" })).toBeVisible();
   await page.screenshot({ path: "e2e/screens/D-home.png", fullPage: true });
 
   // Re-entry after authorization goes straight to the main screen (SPEC flow step 4).

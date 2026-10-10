@@ -1,0 +1,190 @@
+{
+  "figmaFile": "IwoVYL8aolHhH1kRNyTvLg",
+  "screenNode": "9:421",
+  "checkboxNode": "63:2423",
+  "assets": [
+    {
+      "file": "clock.svg",
+      "bytes": 797,
+      "width": "13.3377",
+      "height": "13.3421",
+      "viewBox": "0 0 13.3377 13.3421"
+    },
+    {
+      "file": "person.svg",
+      "bytes": 1242,
+      "width": "11.5532",
+      "height": "13.408",
+      "viewBox": "0 0 11.5532 13.408"
+    },
+    {
+      "file": "calendar.svg",
+      "bytes": 2162,
+      "width": "29",
+      "height": "31.3333",
+      "viewBox": "0 0 29 31.3333"
+    },
+    {
+      "file": "checkbox-default.svg",
+      "bytes": 620,
+      "width": "44",
+      "height": "44",
+      "viewBox": "0 0 44 44"
+    },
+    {
+      "file": "calendar-meta.svg",
+      "bytes": 2176,
+      "width": "11.6",
+      "height": "12.5333",
+      "viewBox": "0 0 11.6 12.5333"
+    },
+    {
+      "file": "pin.svg",
+      "bytes": 2093,
+      "width": "22.3571",
+      "height": "33.5474",
+      "viewBox": "0 0 22.3571 33.5474"
+    },
+    {
+      "file": "telegram.svg",
+      "bytes": 1132,
+      "width": "16.6667",
+      "height": "16.6667",
+      "viewBox": "0 0 16.6667 16.6667"
+    },
+    {
+      "file": "mascot.svg",
+      "bytes": 11788,
+      "width": "154",
+      "height": "154",
+      "viewBox": "0 0 154 154"
+    },
+    {
+      "file": "header-glow.svg",
+      "bytes": 698,
+      "width": "439.6",
+      "height": "82.6",
+      "viewBox": "0 0 439.6 82.6"
+    },
+    {
+      "file": "bell.svg",
+      "bytes": 2202,
+      "width": "29.549",
+      "height": "33.6793",
+      "viewBox": "0 0 29.549 33.6793"
+    },
+    {
+      "file": "pin-meta.svg",
+      "bytes": 2110,
+      "width": "8.94284",
+      "height": "13.419",
+      "viewBox": "0 0 8.94284 13.419"
+    },
+    {
+      "file": "person-invite.svg",
+      "bytes": 1238,
+      "width": "28.8829",
+      "height": "33.52",
+      "viewBox": "0 0 28.8829 33.52"
+    },
+    {
+      "file": "mascot-help.svg",
+      "bytes": 2656,
+      "width": "20",
+      "height": "20",
+      "viewBox": "0 0 20 20"
+    },
+    {
+      "file": "checkbox-hover.svg",
+      "bytes": 635,
+      "width": "44",
+      "height": "44",
+      "viewBox": "0 0 44 44"
+    },
+    {
+      "file": "checkbox-pressed.svg",
+      "bytes": 635,
+      "width": "44",
+      "height": "44",
+      "viewBox": "0 0 44 44"
+    },
+    {
+      "file": "checkbox-focus.svg",
+      "bytes": 846,
+      "width": "44",
+      "height": "44",
+      "viewBox": "0 0 44 44"
+    },
+    {
+      "file": "checkbox-saving.svg",
+      "bytes": 1326,
+      "width": "44",
+      "height": "44",
+      "viewBox": "0 0 44 44"
+    },
+    {
+      "file": "checkbox-checked-circle.svg",
+      "bytes": 444,
+      "width": "24",
+      "height": "24",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "file": "checkmark.svg",
+      "bytes": 608,
+      "width": "16",
+      "height": "16",
+      "viewBox": "0 0 16 16"
+    },
+    {
+      "file": "checkbox-error.svg",
+      "bytes": 620,
+      "width": "44",
+      "height": "44",
+      "viewBox": "0 0 44 44"
+    },
+    {
+      "file": "checkbox-disabled.svg",
+      "bytes": 635,
+      "width": "44",
+      "height": "44",
+      "viewBox": "0 0 44 44"
+    },
+    {
+      "file": "clock-today.svg",
+      "bytes": 822,
+      "width": "18.3393",
+      "height": "18.3454",
+      "viewBox": "0 0 18.3393 18.3454"
+    },
+    {
+      "file": "skeleton-circle.svg",
+      "bytes": 234,
+      "width": "24",
+      "height": "24",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "file": "calendar-unknown.svg",
+      "bytes": 2387,
+      "width": "15.95",
+      "height": "17.2333",
+      "viewBox": "0 0 15.95 17.2333"
+    },
+    {
+      "file": "today-skeleton-row.svg",
+      "bytes": 687,
+      "width": "330",
+      "height": "22",
+      "viewBox": "0 0 330 22"
+    },
+    {
+      "file": "today-skeleton-event.svg",
+      "bytes": 687,
+      "width": "330",
+      "height": "22",
+      "viewBox": "0 0 330 22"
+    }
+  ],
+  "todayLoadingNode": "45:1542"
+}

@@ -1,5 +1,4 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
-import dotUrl from "./assets/dot.svg";
 
 function cx(...parts: Array<string | false | undefined>): string {
   return parts.filter(Boolean).join(" ");
@@ -28,14 +27,13 @@ export function WelcomeText({ children }: { children: ReactNode }) {
 
 type CardProps = HTMLAttributes<HTMLDivElement> & {
   align?: "center" | "top";
-  variant?: "default" | "home";
   minHeight?: number;
 };
 
-export function Card({ align = "center", variant = "default", minHeight, className, style, ...rest }: CardProps) {
+export function Card({ align = "center", minHeight, className, style, ...rest }: CardProps) {
   return (
     <div
-      className={cx("kn-card", align === "top" && "kn-card--top", variant === "home" && "kn-card--home", className)}
+      className={cx("kn-card", align === "top" && "kn-card--top", className)}
       style={{ minHeight, ...style }}
       {...rest}
     />
@@ -81,36 +79,6 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 
 export function List({ children }: { children: ReactNode }) {
   return <ul className="kn-list">{children}</ul>;
-}
-
-type ListRowProps = {
-  children?: ReactNode;
-  meta?: ReactNode;
-  done?: boolean;
-  /** Tapping the dot; omitted for placeholder rows. */
-  onToggle?: () => void;
-  toggleLabel?: string;
-};
-
-export function ListRow({ children, meta, done, onToggle, toggleLabel }: ListRowProps) {
-  const dot = <img src={dotUrl} width={21} height={21} alt="" />;
-  return (
-    <li className="kn-list-row">
-      {onToggle ? (
-        <button type="button" className="kn-list-row__dot" aria-pressed={done} aria-label={toggleLabel} onClick={onToggle}>
-          {dot}
-        </button>
-      ) : (
-        <span className="kn-list-row__dot" aria-hidden="true">
-          {dot}
-        </span>
-      )}
-      <div className={cx("kn-list-row__body", done && "kn-list-row__body--done")}>
-        {children}
-        {meta ? <span className="kn-list-row__meta">{meta}</span> : null}
-      </div>
-    </li>
-  );
 }
 
 export function Sheet({

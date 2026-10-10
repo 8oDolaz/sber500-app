@@ -30,10 +30,6 @@ body {
   display: flex;
   flex-direction: column;
 }
-.kn-screen--home {
-  padding-left: var(--kn-gutter-home);
-  padding-right: var(--kn-gutter-home);
-}
 .kn-screen--centered {
   justify-content: center;
   align-items: center;
@@ -75,12 +71,6 @@ body {
   justify-content: flex-start;
   padding-top: 46px;
 }
-.kn-card--home {
-  border-radius: var(--kn-radius-card-home);
-  padding: 22px 16px 16px;
-  text-align: left;
-  justify-content: flex-start;
-}
 button.kn-card {
   border: 0;
   width: 100%;
@@ -118,8 +108,7 @@ button.kn-card:active {
 }
 .kn-button:focus-visible,
 .kn-chip:focus-visible,
-button.kn-card:focus-visible,
-.kn-list-row__dot:focus-visible {
+button.kn-card:focus-visible {
   outline: 2px solid var(--kn-color-focus);
   outline-offset: 2px;
 }
@@ -152,44 +141,6 @@ button.kn-card:focus-visible,
   margin: 0;
   padding: 0;
 }
-.kn-list-row {
-  display: grid;
-  grid-template-columns: 21px 1fr;
-  column-gap: 11px;
-  align-items: start;
-  min-height: 55px;
-}
-.kn-list-row__dot {
-  width: 21px;
-  height: 21px;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-.kn-list-row__dot img {
-  display: block;
-}
-.kn-list-row__dot[aria-pressed="true"] {
-  opacity: 0.35;
-}
-.kn-list-row__body {
-  min-height: 35px;
-  border-bottom: 1px solid var(--kn-color-divider);
-  font: 400 16px/21px var(--kn-font);
-  overflow-wrap: anywhere;
-}
-.kn-list-row__body--done {
-  color: #8a8a8a;
-  text-decoration: line-through;
-}
-.kn-list-row__meta {
-  display: block;
-  color: #6b6b6b;
-  font-size: 13px;
-  line-height: 18px;
-}
-
 .kn-link {
   color: var(--kn-color-link);
   text-decoration: underline;
@@ -199,26 +150,6 @@ button.kn-card:focus-visible,
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-
-/* home (screen D) */
-.kn-home-header {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.kn-home-header .kn-chip {
-  align-self: flex-start;
-}
-.kn-home-section {
-  margin-top: 36px;
-}
-.kn-home-section + .kn-home-section {
-  margin-top: 69px;
-}
-.kn-hint {
-  color: #6b6b6b;
-  font: 400 14px/19px var(--kn-font);
 }
 
 /* sheet (bottom dialog) */
