@@ -13,6 +13,7 @@ class Role(StrEnum):
 
 INVITE_START_PREFIX = "inv_"
 LOGIN_START_PREFIX = "login_"
+SHARE_INVITE_START_PAYLOAD = "share_invite"
 
 
 def family_name_for(first_name: str | None) -> str:
