@@ -9,15 +9,18 @@
   "scripts": {
     "dev": "pnpm --filter @kainem/pwa dev",
     "build": "pnpm --filter @kainem/pwa build",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc -p tsconfig.quality.json",
     "test": "vitest run",
     "gen:api": "pnpm --filter @kainem/api-client gen",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test:ui": "playwright test --config playwright.ui.config.ts",
+    "test:pwa": "playwright test --config playwright.pwa.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^22",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "fake-indexeddb": "^6.0.0",

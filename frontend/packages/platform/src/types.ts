@@ -40,6 +40,6 @@ export interface PlatformAdapter {
   launchContext(): LaunchContext;
   storage: KeyValueStorage;
   share(payload: SharePayload): Promise<"shared" | "copied" | "cancelled">;
-  openLink(url: string, opts?: { newTab?: boolean }): void;
+  openLink(url: string, opts?: { newTab?: boolean }): void | Promise<void>;
   install?: InstallApi;
 }

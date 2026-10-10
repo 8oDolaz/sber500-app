@@ -1,4 +1,4 @@
-/* kainem design tokens — values from the Figma handoff (SPEC.md §2), px at a 402-wide frame. */
+/* Shared welcome/onboarding/help tokens. Audited home tokens are scoped in home.css. */
 :root {
   --kn-color-bg: #ffffff;
   --kn-color-text: #000000;
@@ -32,14 +32,12 @@
   --kn-chip-ls: -0.1969px;
 
   --kn-radius-card: 28px;
-  --kn-radius-card-home: 26px;
   --kn-radius-button: 18px;
   --kn-radius-bubble: 14px;
   --kn-radius-chip: 15.5px;
 
   --kn-frame-width: 402px;
   --kn-gutter: 26px;
-  --kn-gutter-home: 16px;
 }
 
 @supports not (font-variation-settings: normal) {

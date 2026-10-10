@@ -88,6 +88,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm test:ui
+      - run: pnpm test:pwa
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-ui-results
+          path: frontend/test-results
 
   e2e:
     # Browser → Vite (/api proxy) → FastAPI → Postgres/Redis; the bot side is simulated.

@@ -1,0 +1,65 @@
+{
+  "fileKey": "IwoVYL8aolHhH1kRNyTvLg",
+  "screens": [
+    "92:6999",
+    "90:4273"
+  ],
+  "assets": [
+    {
+      "file": "telegram.svg",
+      "figmaNodes": "79:3758",
+      "bytes": 1148
+    },
+    {
+      "file": "mascot.png",
+      "figmaNodes": "92:7009",
+      "bytes": 2061389
+    },
+    {
+      "file": "forward-message.png",
+      "figmaNodes": "103:5104",
+      "bytes": 62247
+    },
+    {
+      "file": "forward-menu.png",
+      "figmaNodes": "103:5105",
+      "bytes": 2090649
+    },
+    {
+      "file": "bot-search.png",
+      "figmaNodes": "103:5107,103:5108",
+      "bytes": 69050
+    },
+    {
+      "file": "bot-result.png",
+      "figmaNodes": "103:5111",
+      "bytes": 131122
+    },
+    {
+      "file": "photo-result.png",
+      "figmaNodes": "103:5118",
+      "bytes": 1870719
+    },
+    {
+      "file": "family-plan.png",
+      "figmaNodes": "103:5123",
+      "bytes": 96443
+    },
+    {
+      "file": "arrow.svg",
+      "figmaNodes": "103:5109,103:5110",
+      "bytes": 596
+    },
+    {
+      "file": "invite-person.svg",
+      "figmaNodes": "I90:4371;54:2802;374:135",
+      "bytes": 1238
+    },
+    {
+      "file": "hero-background.png",
+      "figmaNodes": "92:7001",
+      "bytes": 89300,
+      "note": "Native decorative background export; static shader bake, no UI text."
+    }
+  ]
+}

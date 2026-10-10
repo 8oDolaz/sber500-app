@@ -1,11 +1,12 @@
-import { Button, Card, CardButton, Logo, Screen, Sheet } from "@kainem/ui-kit";
-import { useState } from "react";
+import { IntroAction, IntroCard, IntroHero, IntroPage, IntroSection, IntroTutorial, Sheet } from "@kainem/ui-kit";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 import { useServices } from "../context";
 import { ru } from "../i18n/ru";
 import { useInstall } from "../useInstall";
 import { useScreenView } from "../useScreenView";
+import { useOnline } from "../useHomeRuntime";
 
 /** Screen C: product intro, add-to-home-screen, "В семью" → main screen. */
 export function Onboarding() {
@@ -17,8 +18,13 @@ export function Onboarding() {
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
   const t = ru.onboarding;
+  const online = useOnline();
+  const [installing, setInstalling] = useState(false);
+  const [installFailed, setInstallFailed] = useState(false);
+  const installTrigger = useRef<HTMLButtonElement>(null);
 
   async function toFamily() {
+    if (saving || !online) return;
     setSaving(true);
     setFailed(false);
     try {
@@ -32,40 +38,43 @@ export function Onboarding() {
     }
   }
 
+  async function install() {
+    if (installing) return;
+    setInstalling(true); setInstallFailed(false);
+    try { await offer(); } catch { setInstallFailed(true); }
+    finally { setInstalling(false); }
+  }
+
   const steps = sheet ? t[sheet === "ios" ? "iosSheet" : "manualSheet"] : null;
   return (
-    <Screen>
-      <Logo size="xl" />
-      <div className="kn-stack" style={{ marginTop: 20 }}>
-        <Card align="top" minHeight={428}>
-          {t.intro}
-        </Card>
-        {mode !== "hidden" ? (
-          <CardButton minHeight={176} onClick={() => void offer()}>
-            {t.addToHome}
-          </CardButton>
-        ) : null}
-      </div>
-      <div style={{ marginTop: 17 }}>
-        {failed ? (
-          <p role="alert" style={{ textAlign: "center", margin: "0 0 12px" }}>
-            {t.failed}
-          </p>
-        ) : null}
-        <Button loading={saving} onClick={() => void toFamily()}>
-          {t.toFamily}
-        </Button>
-      </div>
+    <IntroPage>
+      <IntroHero title={<>Все дела семьи.<br />В одном месте.</>} description={t.intro}
+        caption="Всё готово. Можно переходить к делам семьи." action={<>
+          <IntroAction telegramIcon={false} loading={saving} disabled={!online} onClick={() => void toFamily()}>{saving ? "Сохраняем…" : t.toFamily}</IntroAction>
+          {failed && <p role="alert" className="kn-intro-error">{t.failed}</p>}
+          {!online && <p role="status" className="kn-intro-caption">Нет соединения. Вернитесь в сеть, чтобы продолжить.</p>}
+        </>} />
+      {mode !== "hidden" && <IntroSection title="kainem всегда под рукой"><IntroCard>
+        <h3>План семьи на главном экране</h3>
+        <p>Добавьте приложение на главный экран телефона, чтобы быстро открывать задачи и события.</p>
+        <IntroAction telegramIcon={false} loading={installing} onClick={event => { installTrigger.current = event.currentTarget; void install(); }}>{installing ? "Открываем установку…" : t.addToHome}</IntroAction>
+        {installFailed && <p role="alert" className="kn-intro-error">Не удалось открыть установку. Попробуйте ещё раз.</p>}
+      </IntroCard></IntroSection>}
+      <IntroTutorial variant="welcome" />
+      <footer className="kn-intro-footer">
+        {failed && <p className="kn-intro-error">{t.failed}</p>}
+        <IntroAction telegramIcon={false} loading={saving} disabled={!online} onClick={() => void toFamily()}>{saving ? "Сохраняем…" : "Перейти к делам"}</IntroAction>
+      </footer>
       {steps ? (
-        <Sheet title={steps.title} onClose={closeSheet}>
+        <Sheet title={steps.title} onClose={closeSheet} returnFocusRef={installTrigger}>
           <ol>
             {steps.steps.map((s) => (
               <li key={s}>{s}</li>
             ))}
           </ol>
-          <Button onClick={closeSheet}>{t.gotIt}</Button>
+          <IntroAction telegramIcon={false} onClick={closeSheet}>{t.gotIt}</IntroAction>
         </Sheet>
       ) : null}
-    </Screen>
+    </IntroPage>
   );
 }

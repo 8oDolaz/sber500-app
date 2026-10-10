@@ -1,55 +1,45 @@
-import { Button, Card, Logo, Screen, WelcomeText } from "@kainem/ui-kit";
+import { IntroAction, IntroFeatures, IntroHero, IntroPage, IntroTutorial } from "@kainem/ui-kit";
 import { useAuth } from "../auth/AuthProvider";
 import { useTelegramLogin } from "../auth/useTelegramLogin";
 import { ru } from "../i18n/ru";
 import { useScreenView } from "../useScreenView";
+import { useOnline } from "../useHomeRuntime";
 
-/** Screen B: welcome + "Зарегистрироваться" → registration continues in the Telegram bot. */
+/** Final first contact screen. Both CTAs share one persisted Telegram handshake. */
 export function Welcome() {
   useScreenView("welcome");
   const { signedIn } = useAuth();
   const { status, start, cancel, openTelegram } = useTelegramLogin(signedIn);
   const t = ru.welcome;
+  const online = useOnline();
+  const busy = status.kind === "starting" || status.kind === "waiting";
+
+  function action(footer = false) {
+    return <IntroAction loading={status.kind === "starting" || (!footer && status.kind === "waiting")}
+      disabled={!online || (!footer && busy) || status.kind === "starting"}
+      onClick={() => {
+        if (status.kind === "waiting") void openTelegram(status.deepLink).catch(() => undefined);
+        else void start();
+      }}>
+      {!online ? t.offline : status.kind === "starting" ? t.starting : status.kind === "waiting" ? footer ? t.reopenTelegram : t.waiting : t.register}
+    </IntroAction>;
+  }
 
   return (
-    <Screen>
-      <Logo size="xl" />
-      <WelcomeText>{t.text}</WelcomeText>
-      <div className="kn-stack" style={{ marginTop: 32 }}>
-        <Card minHeight={335}>{t.product}</Card>
-        <Card minHeight={147}>{t.telegramNote}</Card>
-      </div>
-      <div style={{ marginTop: 13 }}>
-        {status.kind === "error" ? (
-          <p role="alert" style={{ textAlign: "center", margin: "0 0 12px" }}>
-            {t.errors[status.reason]}
-          </p>
-        ) : null}
-        {status.kind === "waiting" ? (
-          <>
-            <Button loading>{t.waiting}</Button>
-            <p style={{ textAlign: "center", display: "flex", gap: 16, justifyContent: "center" }}>
-              <a
-                className="kn-link"
-                href={status.deepLink}
-                onClick={(e) => {
-                  e.preventDefault();
-                  openTelegram(status.deepLink);
-                }}
-              >
-                {t.reopenTelegram}
-              </a>
-              <button type="button" className="kn-link" style={{ border: 0, background: "none", font: "inherit" }} onClick={() => void cancel()}>
-                {t.cancel}
-              </button>
-            </p>
-          </>
-        ) : (
-          <Button loading={status.kind === "starting"} onClick={() => void start()}>
-            {t.register}
-          </Button>
-        )}
-      </div>
-    </Screen>
+    <IntroPage>
+      <IntroHero title={<>Все дела семьи.<br />В одном месте.</>} description={t.description}
+        caption={t.telegramNote} action={<>
+          {action()}
+          {status.kind === "error" && <p role="alert" className="kn-intro-error">{t.errors[status.reason]}</p>}
+          {!online && <p role="status" className="kn-intro-caption">{t.errors.offline}</p>}
+          {status.kind === "waiting" && <div className="kn-intro-link-row">
+            <button type="button" className="kn-intro-link" onClick={() => void openTelegram(status.deepLink).catch(() => undefined)}>{t.reopenTelegram}</button>
+            <button type="button" className="kn-intro-link" onClick={() => void cancel()}>{t.cancel}</button>
+          </div>}
+        </>} />
+      <IntroTutorial variant="welcome" />
+      <IntroFeatures />
+      <footer className="kn-intro-footer">{action(true)}<p className="kn-intro-caption">{t.telegramNote}</p></footer>
+    </IntroPage>
   );
 }
