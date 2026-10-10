@@ -33,6 +33,7 @@ export function useTelegramLogin(onSession: (session: Session) => Promise<void>)
   const [status, setStatus] = useState<LoginStatus>({ kind: "idle" });
   const pending = useRef<PendingHandshake | null>(null);
   const polling = useRef(false);
+  const starting = useRef(false);
   const onSessionRef = useRef(onSession);
   onSessionRef.current = onSession;
 
@@ -55,6 +56,8 @@ export function useTelegramLogin(onSession: (session: Session) => Promise<void>)
         params: { path: { nonce: hs.nonce } },
         body: { verifier: hs.verifier },
       });
+      // Cancelled/replaced handshakes must not sign in after a late response.
+      if (pending.current !== hs) return false;
       if (response.status === 202) return false;
       await clearPending();
       if (data && "access_token" in data) {
@@ -100,16 +103,22 @@ export function useTelegramLogin(onSession: (session: Session) => Promise<void>)
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
+      pending.current = null; // persisted storage can resume it after a reload
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [platform, pollLoop]);
 
   const openTelegram = useCallback(
-    (deepLink: string) => platform.openLink(deepLink, { newTab: platform.install?.os() === "desktop" }),
-    [platform],
+    async (deepLink: string) => {
+      try { await platform.openLink(deepLink, { newTab: platform.install?.os() === "desktop" }); }
+      catch { await clearPending(); setStatus({ kind: "error", reason: navigator.onLine ? "failed" : "offline" }); }
+    },
+    [platform, clearPending],
   );
 
   const start = useCallback(async () => {
+    if (starting.current || pending.current) return;
+    starting.current = true;
     analytics.track("register_clicked", {});
     setStatus({ kind: "starting" });
     try {
@@ -134,12 +143,15 @@ export function useTelegramLogin(onSession: (session: Session) => Promise<void>)
       };
       await platform.storage.set(PENDING_KEY, pending.current).catch(() => undefined);
       setStatus({ kind: "waiting", deepLink: data.deep_link });
-      openTelegram(data.deep_link);
+      await openTelegram(data.deep_link);
       void pollLoop();
     } catch {
-      setStatus({ kind: "error", reason: "offline" });
+      await clearPending();
+      setStatus({ kind: "error", reason: navigator.onLine ? "failed" : "offline" });
+    } finally {
+      starting.current = false;
     }
-  }, [analytics, api, platform, openTelegram, pollLoop]);
+  }, [analytics, api, platform, openTelegram, pollLoop, clearPending]);
 
   const cancel = useCallback(async () => {
     await clearPending();

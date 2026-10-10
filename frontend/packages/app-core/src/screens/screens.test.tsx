@@ -33,7 +33,7 @@ describe("onboarding (screen C)", () => {
     const services = makeServices(signedIn().fetchImpl as typeof fetch, memoryStorage(), fakeInstall({ canPrompt: () => true, prompt }));
     const track = vi.spyOn(services.analytics, "track");
     renderApp(services, "/onboarding");
-    await userEvent.click(await screen.findByText("добавьте на главный экран"));
+    await userEvent.click(await screen.findByText("Добавить на главный экран"));
     expect(prompt).toHaveBeenCalledOnce();
     expect(track).toHaveBeenCalledWith("a2hs_prompted", { os: "android" });
     expect(track).toHaveBeenCalledWith("a2hs_accepted", { os: "android" });
@@ -44,7 +44,7 @@ describe("onboarding (screen C)", () => {
     const services = makeServices(signedIn().fetchImpl as typeof fetch, memoryStorage(), install);
     const track = vi.spyOn(services.analytics, "track");
     renderApp(services, "/onboarding");
-    await userEvent.click(await screen.findByText("добавьте на главный экран"));
+    await userEvent.click(await screen.findByText("Добавить на главный экран"));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText(/Открыть в Safari/)).toBeTruthy();
     expect(track).toHaveBeenCalledWith("a2hs_instructions_shown", { os: "ios" });
@@ -56,7 +56,7 @@ describe("onboarding (screen C)", () => {
     const install = fakeInstall({ isInstalled: () => true });
     renderApp(makeServices(signedIn().fetchImpl as typeof fetch, memoryStorage(), install), "/onboarding");
     await screen.findByText("В семью");
-    expect(screen.queryByText("добавьте на главный экран")).toBeNull();
+    expect(screen.queryByText("Добавить на главный экран")).toBeNull();
   });
 
   it("«В семью» completes onboarding and opens the main screen", async () => {
@@ -96,14 +96,15 @@ describe("main screen (D) and help", () => {
     renderApp(services, "/home");
     await userEvent.click(await screen.findByText("Как пользоваться"));
     expect(track).toHaveBeenCalledWith("how_to_clicked", {});
-    expect(await screen.findByText("Пересылайте сообщения боту")).toBeTruthy();
+    expect(await screen.findByText("Перешлите сообщение из чата")).toBeTruthy();
 
     await userEvent.click(screen.getByText("Открыть бота"));
     expect(services.platform.openLink).toHaveBeenCalledWith("https://t.me/kainem_bot");
 
+    await userEvent.click(screen.getByText("Семья и аккаунт"));
     await userEvent.click(screen.getByText("Выйти"));
     await waitFor(() => expect(calls.some((c) => c.path === "/v1/auth/logout")).toBe(true));
-    expect(await screen.findByText("Зарегистрироваться")).toBeTruthy();
+    expect((await screen.findAllByRole("button", { name: "Начать в Telegram" }))[0]!).toBeTruthy();
   });
 });
 
@@ -122,7 +123,8 @@ describe("family switcher (help)", () => {
       "PUT /v1/me/active-family": ({ body }) => ({ status: 200, body: { ...two, active_family_id: body.family_id } }),
     });
     renderApp(makeServices(fetchImpl as typeof fetch), "/help");
-    expect(await screen.findByText("Ваши семьи")).toBeTruthy();
+    await userEvent.click(await screen.findByText("Семья и аккаунт"));
+    expect(screen.getByText("Ваши семьи")).toBeTruthy();
     expect(screen.getByText("Семья Лидер — сейчас открыта")).toBeTruthy();
     await userEvent.click(screen.getByText("Семья Мама"));
     expect(await screen.findByText("Семья Мама — сейчас открыта")).toBeTruthy();
@@ -131,7 +133,7 @@ describe("family switcher (help)", () => {
 
   it("is hidden with a single family", async () => {
     renderApp(makeServices(signedIn({}, true).fetchImpl as typeof fetch), "/help");
-    await screen.findByText("Пересылайте сообщения боту");
+    await screen.findByText("Перешлите сообщение из чата");
     expect(screen.queryByText("Ваши семьи")).toBeNull();
   });
 });

@@ -7,10 +7,10 @@ test("leader: welcome → Telegram → back in the PWA with a session that survi
   );
 
   await page.goto("/?utm_source=e2e");
-  await expect(page.getByRole("button", { name: "Зарегистрироваться" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Начать в Telegram" }).first()).toBeVisible();
   await page.screenshot({ path: "e2e/screens/B-welcome.png", fullPage: true });
 
-  await page.getByRole("button", { name: "Зарегистрироваться" }).click();
+  await page.getByRole("button", { name: "Начать в Telegram" }).first().click();
   await expect(page.getByText("Telegram web stub")).toBeVisible();
   await page.goBack();
   // The reloaded app resumes the persisted handshake and keeps polling.
@@ -59,8 +59,9 @@ test("leader: welcome → Telegram → back in the PWA with a session that survi
   await page.getByRole("button", { name: "Как пользоваться" }).click();
   await expect(page.getByRole("heading", { name: "Как пользоваться" })).toBeVisible();
   await page.screenshot({ path: "e2e/screens/help.png", fullPage: true });
+  await page.getByText("Семья и аккаунт", { exact: true }).click();
   await page.getByRole("button", { name: "Выйти" }).click();
-  await expect(page.getByRole("button", { name: "Зарегистрироваться" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Начать в Telegram" }).first()).toBeVisible();
 });
 
 test("magic link from the bot message signs in once", async ({ page, request }) => {

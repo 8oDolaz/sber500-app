@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, type RefObject } from "react";
 
 function cx(...parts: Array<string | false | undefined>): string {
   return parts.filter(Boolean).join(" ");
@@ -84,21 +84,42 @@ export function List({ children }: { children: ReactNode }) {
 export function Sheet({
   title,
   onClose,
+  returnFocusRef,
   children,
 }: {
   title: string;
   onClose: () => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
   children: ReactNode;
 }) {
+  const dialog = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = returnFocusRef?.current ?? document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialog.current?.querySelector<HTMLElement>("button, a[href], [tabindex='0']")?.focus();
+    return () => { document.body.style.overflow = overflow; previous?.focus(); };
+  }, [returnFocusRef]);
   return (
     <div className="kn-sheet-backdrop" onClick={onClose}>
       <div
+        ref={dialog}
         className="kn-sheet"
         role="dialog"
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { e.preventDefault(); onClose(); }
+          if (e.key === "Tab") {
+            const targets = dialog.current?.querySelectorAll<HTMLElement>("button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex='0']");
+            if (!targets?.length) return;
+            const first = targets[0], last = targets[targets.length - 1];
+            if (!first || !last) return;
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+          }
+        }}
       >
         <h2>{title}</h2>
         {children}

@@ -159,10 +159,10 @@ export function TodayCard({ items, state = "Content", onRetry }: { items: TodayI
   </section>;
 }
 
-export function InviteCard({ opening, error, disabled, unavailable = false, onOpen }: { opening: boolean; error: boolean; disabled: boolean; unavailable?: boolean; onOpen: () => void }) {
+export function InviteCard({ opening, error, disabled, unavailable = false, onOpen, className = "", inviteIcon }: { opening: boolean; error: boolean; disabled: boolean; unavailable?: boolean; onOpen: () => void; className?: string; inviteIcon?: ReactNode }) {
   const id = useId();
-  return <section className="kn-planning-card kn-invite-card" aria-labelledby={id} data-state={error ? "Error" : opening ? "Opening" : "Default"}>
-    <div className="kn-home-card-header"><h2 id={id}>Пригласить в семью</h2><HomeIcon name="invitePerson" /></div>
+  return <section className={`kn-planning-card kn-invite-card ${className}`} aria-labelledby={id} data-state={error ? "Error" : opening ? "Opening" : "Default"}>
+    <div className="kn-home-card-header"><h2 id={id}>Пригласить в семью</h2>{inviteIcon ?? <HomeIcon name="invitePerson" />}</div>
     <p className="kn-home-caption">Планируйте семейные дела вместе.<br />Приглашение можно получить в боте.</p>
     <HomeAction loading={opening} disabled={disabled} onClick={onOpen}>{opening ? "Открываем бота…" : error ? "Попробовать ещё раз" : "Пригласить через бота"}</HomeAction>
     {error && <p role="alert" className="kn-home-caption kn-home-danger">Не удалось открыть бота. Попробуйте ещё раз.</p>}

@@ -38,6 +38,9 @@ test("the installed service worker opens the shell offline and never caches fami
     return requests.flat();
   });
   expect(cached).toContain("/index.html");
+  for (const illustration of ["mascot", "hero-background", "forward-message", "forward-menu", "bot-search", "bot-result", "photo-result", "family-plan"]) {
+    expect(cached.some(path => path.startsWith(`/assets/${illustration}-`) && path.endsWith(".png"))).toBe(true);
+  }
   expect(cached.some(path => path.startsWith("/api/"))).toBe(false);
   await page.unroute("**/api/**");
   await context.setOffline(true);

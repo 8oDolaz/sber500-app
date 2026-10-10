@@ -52,6 +52,6 @@ export function Home() {
         disabled={!bot.available || (opening && bot.state?.origin !== "invite")} onOpen={() => void bot.open("invite")} />
       </>}
     </div>
-    <footer className="kn-home-footer"><HomeAction tone="help" icon="mascotHelp" onClick={() => { analytics.track("how_to_clicked", {}); navigate("/help"); }}>Как пользоваться</HomeAction></footer>
+    <footer className="kn-home-footer"><HomeAction tone="help" icon="mascotHelp" onClick={() => { analytics.track("how_to_clicked", {}); navigate("/help", { state: { fromHome: true, homeScrollY: window.scrollY } }); }}>Как пользоваться</HomeAction></footer>
   </Screen>;
 }

@@ -173,7 +173,7 @@ test("fixed help is keyboard accessible and navigates to the existing instructio
   await expect(help).toHaveCSS("outline-style", "solid");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/help$/);
-  await expect(page.getByText("Пересылайте сообщения боту")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Перешлите сообщение из чата", exact: true })).toBeVisible();
 });
 
 test("an unavailable bot link disables both CTAs and explains why", async ({ page }) => {
@@ -189,6 +189,7 @@ test("offline before the first planning reply shows OfflineEmpty, not Empty", as
   await page.goto("/home");
   const card = page.locator(".kn-planning-card--tasks");
   await expect(card).toHaveAttribute("data-state", "Loading");
+  await expect.poll(() => typeof release).toBe("function");
   await context.setOffline(true);
   await expect(card).toHaveAttribute("data-state", "OfflineEmpty");
   await expect(card.getByRole("button", { name: "Повторить" })).toBeDisabled();

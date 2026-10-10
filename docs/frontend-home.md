@@ -1,6 +1,6 @@
 # Home screen and PWA handoff
 
-The home wireframe has been replaced with the audited [Figma home, 9:421](https://www.figma.com/design/IwoVYL8aolHhH1kRNyTvLg/Untitled?node-id=9-421) and its component/state library. Registration, onboarding and the existing help content are outside this change.
+The home wireframe has been replaced with the audited [Figma home, 9:421](https://www.figma.com/design/IwoVYL8aolHhH1kRNyTvLg/Untitled?node-id=9-421) and its component/state library. The final first-contact screen, signed-in onboarding and guide are documented in [frontend-intro.md](frontend-intro.md).
 
 ## Components and layout
 

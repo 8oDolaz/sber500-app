@@ -9,6 +9,7 @@ A family assistant. People use it through a **PWA** (web app) and a **Telegram b
 | [`docs/deployment.md`](docs/deployment.md) | How to run locally with your bot and deploy to a server: files to create, credentials, commands, checks |
 | [`docs/architecture.md`](docs/architecture.md) | The system as built: components, deployment, code structure, key flows, data model, analytics, security (with diagrams) |
 | [`docs/frontend-home.md`](docs/frontend-home.md) | Audited Figma home: responsive layout, component states, API behavior, PWA branding and checks |
+| [`docs/frontend-intro.md`](docs/frontend-intro.md) | Final Figma first contact, onboarding and guide: Telegram login, installation, navigation and states |
 | [`docs/load-test.md`](docs/load-test.md) | Load test: 10 RPS with 0 errors (5× also held), how to run it |
 | [`docs/llm-cost-per-dau.md`](docs/llm-cost-per-dau.md) | LLM cost per daily active user: model, prices, scenarios, how it's measured |
 | [`docs/adr/`](docs/adr) | Architecture decisions |
