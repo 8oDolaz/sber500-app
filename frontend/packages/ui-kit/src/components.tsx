@@ -1,5 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
-import dotUrl from "./assets/dot.svg";
+import { useEffect, useRef, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, type RefObject } from "react";
 
 function cx(...parts: Array<string | false | undefined>): string {
   return parts.filter(Boolean).join(" ");
@@ -28,14 +27,13 @@ export function WelcomeText({ children }: { children: ReactNode }) {
 
 type CardProps = HTMLAttributes<HTMLDivElement> & {
   align?: "center" | "top";
-  variant?: "default" | "home";
   minHeight?: number;
 };
 
-export function Card({ align = "center", variant = "default", minHeight, className, style, ...rest }: CardProps) {
+export function Card({ align = "center", minHeight, className, style, ...rest }: CardProps) {
   return (
     <div
-      className={cx("kn-card", align === "top" && "kn-card--top", variant === "home" && "kn-card--home", className)}
+      className={cx("kn-card", align === "top" && "kn-card--top", className)}
       style={{ minHeight, ...style }}
       {...rest}
     />
@@ -83,54 +81,45 @@ export function List({ children }: { children: ReactNode }) {
   return <ul className="kn-list">{children}</ul>;
 }
 
-type ListRowProps = {
-  children?: ReactNode;
-  meta?: ReactNode;
-  done?: boolean;
-  /** Tapping the dot; omitted for placeholder rows. */
-  onToggle?: () => void;
-  toggleLabel?: string;
-};
-
-export function ListRow({ children, meta, done, onToggle, toggleLabel }: ListRowProps) {
-  const dot = <img src={dotUrl} width={21} height={21} alt="" />;
-  return (
-    <li className="kn-list-row">
-      {onToggle ? (
-        <button type="button" className="kn-list-row__dot" aria-pressed={done} aria-label={toggleLabel} onClick={onToggle}>
-          {dot}
-        </button>
-      ) : (
-        <span className="kn-list-row__dot" aria-hidden="true">
-          {dot}
-        </span>
-      )}
-      <div className={cx("kn-list-row__body", done && "kn-list-row__body--done")}>
-        {children}
-        {meta ? <span className="kn-list-row__meta">{meta}</span> : null}
-      </div>
-    </li>
-  );
-}
-
 export function Sheet({
   title,
   onClose,
+  returnFocusRef,
   children,
 }: {
   title: string;
   onClose: () => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
   children: ReactNode;
 }) {
+  const dialog = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = returnFocusRef?.current ?? document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialog.current?.querySelector<HTMLElement>("button, a[href], [tabindex='0']")?.focus();
+    return () => { document.body.style.overflow = overflow; previous?.focus(); };
+  }, [returnFocusRef]);
   return (
     <div className="kn-sheet-backdrop" onClick={onClose}>
       <div
+        ref={dialog}
         className="kn-sheet"
         role="dialog"
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { e.preventDefault(); onClose(); }
+          if (e.key === "Tab") {
+            const targets = dialog.current?.querySelectorAll<HTMLElement>("button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex='0']");
+            if (!targets?.length) return;
+            const first = targets[0], last = targets[targets.length - 1];
+            if (!first || !last) return;
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+          }
+        }}
       >
         <h2>{title}</h2>
         {children}

@@ -9,7 +9,7 @@ describe("session gate", () => {
   it("sends a guest from the splash to the welcome screen", async () => {
     const { fetchImpl } = fakeBackend({ "POST /v1/auth/refresh": () => ({ status: 401, body: { detail: {} } }) });
     renderApp(makeServices(fetchImpl as typeof fetch));
-    expect(await screen.findByText("Зарегистрироваться")).toBeTruthy();
+    expect((await screen.findAllByRole("button", { name: "Начать в Telegram" }))[0]!).toBeTruthy();
   });
 
   it("sends a returning user who hasn't finished onboarding to onboarding", async () => {
@@ -58,7 +58,7 @@ describe("welcome → Telegram login", () => {
     });
     const services = makeServices(fetchImpl as typeof fetch);
     renderApp(services);
-    await userEvent.click(await screen.findByText("Зарегистрироваться"));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Начать в Telegram" }))[0]!);
 
     expect(await screen.findByText("Ждём подтверждения…")).toBeTruthy();
     expect(services.platform.openLink).toHaveBeenCalledWith("https://t.me/kainem_bot?start=login_N1", {
@@ -109,9 +109,51 @@ describe("welcome → Telegram login", () => {
       "POST /v1/auth/tg-handshake/{nonce}/exchange": () => ({ status: 410, body: { detail: { reason: "expired" } } }),
     });
     renderApp(makeServices(fetchImpl as typeof fetch));
-    await userEvent.click(await screen.findByText("Зарегистрироваться"));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Начать в Telegram" }))[0]!);
     expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Ссылка для входа устарела. Попробуйте ещё раз.");
-    expect(screen.getByText("Зарегистрироваться")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Начать в Telegram" })[0]!).toBeTruthy();
+  });
+
+  it("does not sign in when an exchange arrives after cancellation", async () => {
+    let release: ((value: { status: number; body: unknown }) => void) | undefined;
+    const storage = memoryStorage();
+    const { fetchImpl, calls } = fakeBackend({
+      "POST /v1/auth/refresh": () => ({ status: 401 }),
+      "POST /v1/auth/tg-handshake": () => ({ status: 201, body: {
+        nonce: "cancelled", deep_link: "https://t.me/kainem_bot?start=login_cancelled",
+        expires_at: new Date(Date.now() + 600_000).toISOString(), poll_interval_ms: 10,
+      } }),
+      "POST /v1/auth/tg-handshake/{nonce}/exchange": () => new Promise(resolve => { release = resolve; }),
+      "GET /v1/me": () => ({ status: 200, body: me() }),
+    });
+    renderApp(makeServices(fetchImpl as typeof fetch, storage));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Начать в Telegram" }))[0]!);
+    await waitFor(() => expect(release).toBeTypeOf("function"));
+    await userEvent.click(screen.getByRole("button", { name: "Отмена" }));
+    await act(async () => { release!({ status: 200, body: sessionBody }); });
+    expect(screen.getAllByRole("button", { name: "Начать в Telegram" })).toHaveLength(2);
+    expect(await storage.get("auth.pending_handshake")).toBeUndefined();
+    expect(calls.some(call => call.path === "/v1/me")).toBe(false);
+  });
+
+  it("shows a failed Telegram handoff and allows a fresh attempt", async () => {
+    const { fetchImpl, calls } = fakeBackend({
+      "POST /v1/auth/refresh": () => ({ status: 401 }),
+      "POST /v1/auth/tg-handshake": () => ({ status: 201, body: {
+        nonce: "retry", deep_link: "https://t.me/kainem_bot?start=login_retry",
+        expires_at: new Date(Date.now() + 600_000).toISOString(), poll_interval_ms: 2000,
+      } }),
+      "POST /v1/auth/tg-handshake/{nonce}/exchange": () => ({ status: 202, body: { status: "pending" } }),
+    });
+    const services = makeServices(fetchImpl as typeof fetch);
+    vi.mocked(services.platform.openLink).mockRejectedValueOnce(new Error("handoff failed"));
+    renderApp(services);
+    await userEvent.click((await screen.findAllByRole("button", { name: "Начать в Telegram" }))[0]!);
+    expect((await screen.findByRole("alert")).textContent).toContain("Не получилось войти");
+    expect(await services.platform.storage.get("auth.pending_handshake")).toBeUndefined();
+    await userEvent.click(screen.getAllByRole("button", { name: "Начать в Telegram" })[1]!);
+    expect(await screen.findByText("Ждём подтверждения…")).toBeTruthy();
+    expect(calls.filter(call => call.path === "/v1/auth/tg-handshake")).toHaveLength(2);
   });
 });
 
@@ -144,6 +186,6 @@ describe("deep links", () => {
       "GET /v1/me": () => ({ status: 200, body: me({ onboarding_completed: true }) }),
     });
     renderApp(makeServices(fetchImpl as typeof fetch), "/help");
-    expect(await screen.findByText("Пересылайте сообщения боту")).toBeTruthy();
+    expect(await screen.findByText("Перешлите сообщение из чата")).toBeTruthy();
   });
 });

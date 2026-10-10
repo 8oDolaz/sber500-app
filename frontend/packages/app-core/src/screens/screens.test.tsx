@@ -8,6 +8,8 @@ function signedIn(extra: Record<string, Parameters<typeof fakeBackend>[0][string
   return fakeBackend({
     "POST /v1/auth/refresh": () => ({ status: 200, body: sessionBody }),
     "GET /v1/me": () => ({ status: 200, body: me({ onboarding_completed: onboarded }) }),
+    "GET /v1/families/{id}/tasks": () => ({ status: 200, body: [] }),
+    "GET /v1/families/{id}/events": () => ({ status: 200, body: { timezone: "Europe/Moscow", events: [] } }),
     ...extra,
   });
 }
@@ -31,7 +33,7 @@ describe("onboarding (screen C)", () => {
     const services = makeServices(signedIn().fetchImpl as typeof fetch, memoryStorage(), fakeInstall({ canPrompt: () => true, prompt }));
     const track = vi.spyOn(services.analytics, "track");
     renderApp(services, "/onboarding");
-    await userEvent.click(await screen.findByText("добавьте на главный экран"));
+    await userEvent.click(await screen.findByText("Добавить на главный экран"));
     expect(prompt).toHaveBeenCalledOnce();
     expect(track).toHaveBeenCalledWith("a2hs_prompted", { os: "android" });
     expect(track).toHaveBeenCalledWith("a2hs_accepted", { os: "android" });
@@ -42,7 +44,7 @@ describe("onboarding (screen C)", () => {
     const services = makeServices(signedIn().fetchImpl as typeof fetch, memoryStorage(), install);
     const track = vi.spyOn(services.analytics, "track");
     renderApp(services, "/onboarding");
-    await userEvent.click(await screen.findByText("добавьте на главный экран"));
+    await userEvent.click(await screen.findByText("Добавить на главный экран"));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText(/Открыть в Safari/)).toBeTruthy();
     expect(track).toHaveBeenCalledWith("a2hs_instructions_shown", { os: "ios" });
@@ -54,7 +56,7 @@ describe("onboarding (screen C)", () => {
     const install = fakeInstall({ isInstalled: () => true });
     renderApp(makeServices(signedIn().fetchImpl as typeof fetch, memoryStorage(), install), "/onboarding");
     await screen.findByText("В семью");
-    expect(screen.queryByText("добавьте на главный экран")).toBeNull();
+    expect(screen.queryByText("Добавить на главный экран")).toBeNull();
   });
 
   it("«В семью» completes onboarding and opens the main screen", async () => {
@@ -77,13 +79,14 @@ describe("onboarding (screen C)", () => {
 });
 
 describe("main screen (D) and help", () => {
-  it("shows tasks and events with the empty-state hint; the third category stays hidden", async () => {
+  it("shows real empty states without placeholder rows", async () => {
     renderApp(makeServices(signedIn({}, true).fetchImpl as typeof fetch), "/home");
     expect(await screen.findByText("Задачи")).toBeTruthy();
     expect(screen.getByText("События")).toBeTruthy();
-    expect(screen.getByText(/Перешлите боту сообщение/)).toBeTruthy();
+    expect(await screen.findByText("Задач пока нет")).toBeTruthy();
+    expect(await screen.findByText("Событий пока нет")).toBeTruthy();
     expect(screen.queryByText(/третья категор/)).toBeNull();
-    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
   });
 
   it("«Как пользоваться» opens help, which opens the bot and signs out", async () => {
@@ -93,14 +96,15 @@ describe("main screen (D) and help", () => {
     renderApp(services, "/home");
     await userEvent.click(await screen.findByText("Как пользоваться"));
     expect(track).toHaveBeenCalledWith("how_to_clicked", {});
-    expect(await screen.findByText("Пересылайте сообщения боту")).toBeTruthy();
+    expect(await screen.findByText("Перешлите сообщение из чата")).toBeTruthy();
 
     await userEvent.click(screen.getByText("Открыть бота"));
     expect(services.platform.openLink).toHaveBeenCalledWith("https://t.me/kainem_bot");
 
+    await userEvent.click(screen.getByText("Семья и аккаунт"));
     await userEvent.click(screen.getByText("Выйти"));
     await waitFor(() => expect(calls.some((c) => c.path === "/v1/auth/logout")).toBe(true));
-    expect(await screen.findByText("Зарегистрироваться")).toBeTruthy();
+    expect((await screen.findAllByRole("button", { name: "Начать в Telegram" }))[0]!).toBeTruthy();
   });
 });
 
@@ -119,7 +123,8 @@ describe("family switcher (help)", () => {
       "PUT /v1/me/active-family": ({ body }) => ({ status: 200, body: { ...two, active_family_id: body.family_id } }),
     });
     renderApp(makeServices(fetchImpl as typeof fetch), "/help");
-    expect(await screen.findByText("Ваши семьи")).toBeTruthy();
+    await userEvent.click(await screen.findByText("Семья и аккаунт"));
+    expect(screen.getByText("Ваши семьи")).toBeTruthy();
     expect(screen.getByText("Семья Лидер — сейчас открыта")).toBeTruthy();
     await userEvent.click(screen.getByText("Семья Мама"));
     expect(await screen.findByText("Семья Мама — сейчас открыта")).toBeTruthy();
@@ -128,65 +133,7 @@ describe("family switcher (help)", () => {
 
   it("is hidden with a single family", async () => {
     renderApp(makeServices(signedIn({}, true).fetchImpl as typeof fetch), "/help");
-    await screen.findByText("Пересылайте сообщения боту");
+    await screen.findByText("Перешлите сообщение из чата");
     expect(screen.queryByText("Ваши семьи")).toBeNull();
-  });
-});
-
-describe("main screen items", () => {
-  const tasks = [
-    { id: "t1", title: "Забрать посылку", due_date: "2026-09-26", due_at: null, assignee_hint: null, done: false },
-  ];
-  const events = {
-    timezone: "Europe/Moscow",
-    events: [
-      {
-        id: "e1",
-        title: "Танцы у Даши",
-        all_day: false,
-        starts_at: "2026-09-29T10:00:00Z",
-        ends_at: null,
-        start_date: null,
-        participants_hint: "Даша",
-      },
-    ],
-  };
-
-  it("shows tasks and events, fills the card to three rows, and the dot completes a task", async () => {
-    const { fetchImpl, calls } = signedIn(
-      {
-        "GET /v1/families/{id}/tasks": () => ({ status: 200, body: tasks }),
-        "GET /v1/families/{id}/events": () => ({ status: 200, body: events }),
-        "PATCH /v1/families/{id}/tasks/{task}": ({ body }) => ({ status: 200, body: { ...tasks[0], done: body.done } }),
-      },
-      true,
-    );
-    renderApp(makeServices(fetchImpl as typeof fetch), "/home");
-    expect(await screen.findByText("Забрать посылку")).toBeTruthy();
-    expect(screen.getByText("до сб 26.09")).toBeTruthy();
-    expect(await screen.findByText("Танцы у Даши")).toBeTruthy();
-    expect(screen.getByText("вт 29.09, 13:00 · Даша")).toBeTruthy();
-    expect(screen.getAllByRole("listitem")).toHaveLength(6);
-    expect(screen.queryByText(/Перешлите боту сообщение/)).toBeNull();
-
-    await userEvent.click(screen.getByRole("button", { name: "Отметить выполненной" }));
-    expect(screen.getByRole("button", { name: "Вернуть в работу" }).getAttribute("aria-pressed")).toBe("true");
-    await waitFor(() =>
-      expect(calls.find((c) => c.method === "PATCH")).toMatchObject({ path: "/v1/families/f1/tasks/t1", body: { done: true } }),
-    );
-  });
-
-  it("reverts the optimistic tick when saving fails", async () => {
-    const { fetchImpl } = signedIn(
-      {
-        "GET /v1/families/{id}/tasks": () => ({ status: 200, body: tasks }),
-        "GET /v1/families/{id}/events": () => ({ status: 200, body: { timezone: "Europe/Moscow", events: [] } }),
-        "PATCH /v1/families/{id}/tasks/{task}": () => ({ status: 500 }),
-      },
-      true,
-    );
-    renderApp(makeServices(fetchImpl as typeof fetch), "/home");
-    await userEvent.click(await screen.findByRole("button", { name: "Отметить выполненной" }));
-    expect(await screen.findByRole("button", { name: "Отметить выполненной" })).toBeTruthy();
   });
 });
