@@ -113,7 +113,10 @@ async def test_other_user_cannot_bind_someone_elses_nonce(client: httpx.AsyncCli
     nonce, verifier, _ = await start_handshake(client, uuid.uuid4())
     await press_start(client, f"login_{nonce}", tg_user_id=1)
     texts = await press_start(client, f"login_{nonce}", tg_user_id=2)
-    assert texts[0].startswith("Ссылка для входа устарела")
+    assert texts[0] == "<b>Пространство семьи зарегистрировано!</b>"
+    assert "?start=inv_" in texts[1]
+    assert texts[2].startswith("Ссылка для входа устарела")
+    assert texts[2].endswith(f"\n\n{texts[1]}")
     r = await client.post(f"/v1/auth/tg-handshake/{nonce}/exchange", json={"verifier": verifier})
     me = await client.get("/v1/me", headers={"Authorization": f"Bearer {r.json()['access_token']}"})
     assert me.json()["user"]["first_name"] == "Лидер"

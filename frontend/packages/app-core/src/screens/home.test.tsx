@@ -85,8 +85,19 @@ describe("home data states", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Пригласить через бота" }));
     expect(await screen.findByRole("alert")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Попробовать ещё раз" }));
-    expect(services.platform.openLink).toHaveBeenCalledWith("https://t.me/kainem_bot");
+    expect(services.platform.openLink).toHaveBeenCalledWith("https://t.me/kainem_bot?start=share_invite");
     expect(screen.queryByText("Приглашение отправлено")).toBeNull();
+  });
+  it("uses the invitation start payload with the configured bot and leaves the header action unchanged", async () => {
+    const services = makeServices(backend({ "GET /v1/me": () => ({ status: 200, body: { ...me({ onboarding_completed: true }), bot_link: "https://telegram.me/family_staging_bot?start=old&ref=pwa" } }) }).fetchImpl as typeof fetch);
+    renderApp(services, "/home");
+    await userEvent.click(await screen.findByRole("button", { name: "Пригласить через бота" }));
+    expect(services.platform.openLink).toHaveBeenLastCalledWith("https://telegram.me/family_staging_bot?start=share_invite&ref=pwa");
+    window.dispatchEvent(new Event("focus"));
+    const header = screen.getByRole("button", { name: "В бота" });
+    await waitFor(() => expect(header.hasAttribute("disabled")).toBe(false));
+    await userEvent.click(header);
+    expect(services.platform.openLink).toHaveBeenLastCalledWith("https://telegram.me/family_staging_bot?start=old&ref=pwa");
   });
   it("blocks duplicate bot handoffs and restores the buttons on return without a false missing-link error", async () => {
     let finish!: () => void;

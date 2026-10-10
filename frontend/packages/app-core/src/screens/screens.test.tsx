@@ -106,6 +106,13 @@ describe("main screen (D) and help", () => {
     await waitFor(() => expect(calls.some((c) => c.path === "/v1/auth/logout")).toBe(true));
     expect((await screen.findAllByRole("button", { name: "Начать в Telegram" }))[0]!).toBeTruthy();
   });
+
+  it("the guide invitation opens the bot with the invitation start payload", async () => {
+    const services = makeServices(signedIn({}, true).fetchImpl as typeof fetch);
+    renderApp(services, "/help");
+    await userEvent.click(await screen.findByRole("button", { name: "Пригласить через бота" }));
+    expect(services.platform.openLink).toHaveBeenCalledWith("https://t.me/kainem_bot?start=share_invite");
+  });
 });
 
 describe("family switcher (help)", () => {

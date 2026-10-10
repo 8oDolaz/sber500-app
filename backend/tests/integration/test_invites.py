@@ -4,6 +4,7 @@ import re
 import uuid
 
 import httpx
+import pytest
 from aiogram.methods import AnswerInlineQuery, SendMessage
 from sqlalchemy import select
 
@@ -63,6 +64,8 @@ async def test_acceptor_joins_leader_family_and_gets_a_magic_link(
     reply = texts(await send(client, message_update(f"/start inv_{token}", tg_user_id=ACCEPTOR, first_name="Мама")))
     assert len(reply) == 1
     assert reply[0].startswith("Ты получил приглашение в пространство семьи «Семья Лидер». Переходи — ")
+    assert "\n\nОтправь эту ссылку близким" in reply[0]
+    assert reply[0].endswith(f"https://t.me/kainem_test_bot?start=inv_{token}")
     magic = re.search(r"/auth/tg\?token=([\w-]+)", reply[0])
     assert magic
 
@@ -93,6 +96,7 @@ async def test_opening_the_invite_again_says_already_member(client: httpx.AsyncC
     await send(client, message_update(f"/start inv_{token}", tg_user_id=ACCEPTOR))
     again = texts(await send(client, message_update(f"/start inv_{token}", tg_user_id=ACCEPTOR)))
     assert again[0].startswith("Ты уже в семье «Семья Лидер»")
+    assert again[0].endswith(f"https://t.me/kainem_test_bot?start=inv_{token}")
     assert [e.properties["result"] for e in await events(container, "invite_opened")] == ["accepted", "already_member"]
     assert len(await events(container, "invite_accepted")) == 1
 
@@ -152,14 +156,35 @@ async def test_leader_of_own_family_can_join_another_and_switch(client: httpx.As
     # a plain /start later keeps using the active family, no third family appears
     later = texts(await send(client, message_update("/start", tg_user_id=ACCEPTOR, first_name="Мама")))
     assert later[0].startswith("Вы вошли")
+    own_invite = re.search(r"https://t.me/\S+", own[1])
+    assert own_invite
+    assert later[0].endswith(own_invite.group(0))
+    shared = texts(await send(client, message_update("/start share_invite", tg_user_id=ACCEPTOR)))
+    assert len(shared) == 1 and shared[0].endswith(own_invite.group(0))
+    assert f"inv_{token}" not in shared[0]  # the invitation belongs to the family selected in the PWA
 
 
-async def test_invite_command_resends_with_share_button(client: httpx.AsyncClient) -> None:
+@pytest.mark.parametrize("command", ["/invite", "/start share_invite"])
+async def test_invite_command_resends_with_share_button(client: httpx.AsyncClient, command: str) -> None:
     token = await register_leader(client)
-    [msg] = [m for m in await send(client, message_update("/invite", tg_user_id=LEADER)) if isinstance(m, SendMessage)]
+    [msg] = [m for m in await send(client, message_update(command, tg_user_id=LEADER)) if isinstance(m, SendMessage)]
     assert f"inv_{token}" in msg.text and msg.reply_markup is not None
-    unknown = texts(await send(client, message_update("/invite", tg_user_id=999)))
+    assert msg.text.startswith("Отправь эту ссылку близким")
+    assert "/auth/tg?token=" not in msg.text
+    unknown = texts(await send(client, message_update(command, tg_user_id=999)))
     assert unknown[0].startswith("Сначала зарегистрируйте семью")
+
+
+async def test_invite_deep_link_replaces_a_revoked_invite(client: httpx.AsyncClient, container: Container) -> None:
+    token = await register_leader(client)
+    async with container.db.transaction() as s:
+        invite = (await s.scalars(select(InviteRow))).one()
+        invite.revoked_at = invite.created_at
+    [reply] = texts(await send(client, message_update("/start share_invite", tg_user_id=LEADER)))
+    replacement = re.search(r"start=inv_([\w-]+)", reply)
+    assert replacement and replacement.group(1) != token
+    joined = texts(await send(client, message_update(f"/start inv_{replacement.group(1)}", tg_user_id=ACCEPTOR)))
+    assert joined[0].startswith("Ты получил приглашение")
 
 
 async def test_inline_share_returns_invite_card_and_tracks_choice(
