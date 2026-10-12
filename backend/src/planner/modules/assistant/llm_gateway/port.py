@@ -29,6 +29,8 @@ class LLMRequest:
     temperature: float = 0.0
     max_tokens: int | None = None
     json_mode: bool = False
+    # None keeps the model's default; False stops hybrid models (Qwen 3.5+) from spending max_tokens on reasoning.
+    thinking: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)

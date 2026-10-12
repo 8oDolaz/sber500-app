@@ -38,6 +38,9 @@ class OpenAICompatibleProvider:
             kwargs["max_tokens"] = request.max_tokens
         if request.json_mode:
             kwargs["response_format"] = {"type": "json_object"}
+        if request.thinking is not None:
+            # The LiteLLM proxy passes chat template kwargs through to the model server (verified for Qwen 3.6).
+            kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": request.thinking}}
         try:
             raw = await self._client.chat.completions.with_raw_response.create(**kwargs)
         except openai.APITimeoutError as exc:

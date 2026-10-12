@@ -25,6 +25,7 @@ from aiogram.types import (
     User,
 )
 
+from planner.domain.families import SHARE_INVITE_START_PAYLOAD
 from planner.entrypoints.bot import texts
 from planner.modules.identity.service import TelegramProfile
 from planner.modules.notifications.bot_chats import BotChatService
@@ -71,26 +72,36 @@ async def reply_to_start(message: Message, result: StartResult) -> None:
         )
         return
     assert result.magic_link and result.invite_link and result.family_name
+    if result.kind == "family_registered":
+        await message.answer(texts.FAMILY_REGISTERED)
+        await send_invite(message, result.invite_link)
     if result.kind == "invite_accepted":
         await message.answer(
-            texts.invite_accepted(result.family_name, result.magic_link), link_preview_options=NO_PREVIEW
+            texts.invite_accepted(result.family_name, result.magic_link, result.invite_link),
+            link_preview_options=NO_PREVIEW,
         )
     elif result.kind == "invite_already_member":
         await message.answer(
-            texts.already_member(result.family_name, result.magic_link), link_preview_options=NO_PREVIEW
+            texts.already_member(result.family_name, result.magic_link, result.invite_link),
+            link_preview_options=NO_PREVIEW,
         )
     elif result.handshake_error in ("expired", "used"):
-        await message.answer(texts.handshake_expired(result.magic_link), link_preview_options=NO_PREVIEW)
+        await message.answer(
+            texts.handshake_expired(result.magic_link, result.invite_link), link_preview_options=NO_PREVIEW
+        )
     elif result.kind == "family_registered":
-        await message.answer(texts.FAMILY_REGISTERED)
-        await send_invite(message, result.invite_link)
-        await message.answer(texts.finish_registration(result.magic_link), link_preview_options=NO_PREVIEW)
+        await message.answer(
+            texts.finish_registration(result.magic_link, result.invite_link), link_preview_options=NO_PREVIEW
+        )
     else:
-        await message.answer(texts.logged_in(result.magic_link), link_preview_options=NO_PREVIEW)
+        await message.answer(texts.logged_in(result.magic_link, result.invite_link), link_preview_options=NO_PREVIEW)
 
 
 async def start(message: Message, command: CommandObject, registration: RegistrationService) -> None:
     if message.from_user is None or message.from_user.is_bot:
+        return
+    if (command.args or "").strip() == SHARE_INVITE_START_PAYLOAD:
+        await invite_command(message, registration)
         return
     await reply_to_start(message, await registration.handle_start(profile_of(message.from_user), command.args))
 

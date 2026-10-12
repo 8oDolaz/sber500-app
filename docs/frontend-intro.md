@@ -30,7 +30,7 @@ The grey invitation remains `#e6e3e3`. Future Alice/calendar features retain the
 | Install hidden | Already installed, or a desktop without a native install offer. Installation is optional; opening the instructions is not treated as successful installation. |
 | Install pending / failed | Busy action prevents duplicate invocation; failure offers another attempt. Instructions trap focus, support Escape and restore focus to their trigger. |
 | `/home` → `/help` → back | The fixed home button opens the guide at its top; its back buttons restore the prior home scroll position. A direct guide visit falls back to `/home`. |
-| Guide bot / invitation | Both actions use the configured, validated `me.bot_link`; opening blocks duplicate handoff across actions. Missing links disable them with an explanation. Actual adapter errors show a retry; opening Telegram never claims an invitation was sent. |
+| Guide bot / invitation | Both actions use the configured, validated `me.bot_link`; the invitation adds `start=share_invite` so the bot replies with the active family's invitation. Opening blocks duplicate handoff across actions. Missing links disable them with an explanation. Actual adapter errors show a retry; opening Telegram never claims an invitation was sent. |
 | Family selector | Shown for multiple families; active family is marked. `PUT /v1/me/active-family` saves the choice; pending/offline states disable switches, failure permits retry. |
 | Sign-out | Uses the existing logout/session cleanup, including clearing family query data. |
 

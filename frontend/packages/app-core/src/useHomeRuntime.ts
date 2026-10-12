@@ -44,7 +44,9 @@ export function useBotAction(link: string | null | undefined, familyId: string) 
     const request = ++generation.current;
     active.current = true; setState({ origin, status: "Opening" });
     try {
-      await platform.openLink(link!);
+      const destination = new URL(link!);
+      if (origin === "invite") destination.searchParams.set("start", "share_invite");
+      await platform.openLink(origin === "invite" ? destination.toString() : link!);
       // The browser cannot confirm the Telegram handoff. Only release the busy state.
       if (generation.current === request) timer.current = setTimeout(reset, 1500);
     } catch { if (generation.current === request) { active.current = false; setState({ origin, status: "Error" }); } }

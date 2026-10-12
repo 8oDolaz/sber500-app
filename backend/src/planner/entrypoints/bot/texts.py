@@ -5,8 +5,7 @@ from html import escape
 FAMILY_REGISTERED = "<b>Пространство семьи зарегистрировано!</b>"  # E1
 
 # E2 — self-contained so a native forward to relatives works ("Пересылается в лс людям").
-# Design copy had a typo ("и он добавиться"); fixed. TODO(design): confirm wording.
-INVITE = "Отправь ссылку-приглашение родным, и они добавятся в семью:\n{invite_link}"
+INVITE = "Отправь эту ссылку близким — по ней они смогут присоединиться к твоей семье:\n{invite_link}"
 
 # E3
 FINISH_REGISTRATION = "Завершите регистрацию семьи. Вот пространство семьи — {magic_link}"
@@ -45,24 +44,28 @@ def invite(invite_link: str) -> str:
     return INVITE.format(invite_link=escape(invite_link))
 
 
-def finish_registration(magic_link: str) -> str:
-    return FINISH_REGISTRATION.format(magic_link=escape(magic_link))
+def _space_with_invite(message: str, invite_link: str) -> str:
+    return f"{message}\n\n{invite(invite_link)}"
 
 
-def logged_in(magic_link: str) -> str:
-    return LOGGED_IN.format(magic_link=escape(magic_link))
+def finish_registration(magic_link: str, invite_link: str) -> str:
+    return _space_with_invite(FINISH_REGISTRATION.format(magic_link=escape(magic_link)), invite_link)
 
 
-def handshake_expired(magic_link: str) -> str:
-    return HANDSHAKE_EXPIRED.format(magic_link=escape(magic_link))
+def logged_in(magic_link: str, invite_link: str) -> str:
+    return _space_with_invite(LOGGED_IN.format(magic_link=escape(magic_link)), invite_link)
 
 
-def invite_accepted(family: str, magic_link: str) -> str:
-    return INVITE_ACCEPTED.format(family=escape(family), magic_link=escape(magic_link))
+def handshake_expired(magic_link: str, invite_link: str) -> str:
+    return _space_with_invite(HANDSHAKE_EXPIRED.format(magic_link=escape(magic_link)), invite_link)
 
 
-def already_member(family: str, magic_link: str) -> str:
-    return ALREADY_MEMBER.format(family=escape(family), magic_link=escape(magic_link))
+def invite_accepted(family: str, magic_link: str, invite_link: str) -> str:
+    return _space_with_invite(INVITE_ACCEPTED.format(family=escape(family), magic_link=escape(magic_link)), invite_link)
+
+
+def already_member(family: str, magic_link: str, invite_link: str) -> str:
+    return _space_with_invite(ALREADY_MEMBER.format(family=escape(family), magic_link=escape(magic_link)), invite_link)
 
 
 def invite_card(family: str, invite_link: str) -> str:

@@ -71,7 +71,9 @@ Queries are scoped by family, consume cancellation signals, refetch on mount/ret
 
 **Current API boundary:** there is no independent time-only field. `due_at`/`starts_at` contain a date and time together, and event creation requires a start date or instant. TimeOnly and undated-event variants are implemented and previewable in the UI kit, but persisting those combinations requires a separate backend/domain contract change. The frontend does not manufacture a date to simulate them.
 
-Both Telegram CTAs use `me.bot_link`, with an HTTPS Telegram host check. Opening the bot does not mean an invitation was sent. The browser cannot confirm that the native Telegram app opened; the busy state is released on return or after 1.5 seconds without claiming success. Invitation creation/sending remains in the bot.
+Both Telegram CTAs use the configured `me.bot_link`, with an HTTPS Telegram host check. The header opens that link unchanged; “Пригласить через бота” sets `start=share_invite` (on home and in the guide). The bot handles `/start share_invite` like `/invite`: it sends the active family's current invitation with sharing instructions and a “Поделиться” button. This intent neither logs the user in nor joins or creates a family. A revoked invitation is replaced with a valid one. Telegram may show a Start confirmation before delivering the command.
+
+Opening the bot does not mean an invitation was sent. The browser cannot confirm that the native Telegram app opened; the busy state is released on return or after 1.5 seconds without claiming success. Invitation creation/sending remains in the bot. After first registration, the bot sends a separate invitation message without a private login token. Every bot message with a space/login link also includes the family invitation after a blank line, including repeat login, an expired handshake, joining a family and already being a member.
 
 ## PWA and branding
 
