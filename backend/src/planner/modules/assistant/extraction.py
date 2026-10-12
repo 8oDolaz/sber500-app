@@ -139,7 +139,14 @@ class Extractor:
                     ChatMessage("user", f"Ответ не прошёл проверку: {last_error}. Верни только корректный JSON."),
                 ]
             result = await self._llm.complete(
-                LLMRequest(model=self._model, messages=messages, temperature=0.0, max_tokens=800, json_mode=True),
+                LLMRequest(
+                    model=self._model,
+                    messages=messages,
+                    temperature=0.0,
+                    max_tokens=800,
+                    json_mode=True,
+                    thinking=False,
+                ),
                 feature="extraction",
                 user_id=ctx.user_id,
                 family_id=ctx.family_id,

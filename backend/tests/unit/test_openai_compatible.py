@@ -3,6 +3,7 @@
 import threading
 import time
 from collections.abc import Iterator
+from dataclasses import replace
 from decimal import Decimal
 
 import pytest
@@ -93,6 +94,13 @@ async def test_completion_usage_and_proxy_cost(proxy_url: str) -> None:
     assert (result.input_tokens, result.output_tokens) == (120, 8)
     assert result.reported_cost == Decimal("0.00321")
     assert state["last_body"]["response_format"] == {"type": "json_object"}
+    assert "chat_template_kwargs" not in state["last_body"]
+
+
+async def test_thinking_switch_goes_to_chat_template_kwargs(proxy_url: str) -> None:
+    state["mode"] = "ok"
+    await provider(proxy_url).complete(replace(REQ, thinking=False))
+    assert state["last_body"]["chat_template_kwargs"] == {"enable_thinking": False}
 
 
 async def test_images_are_sent_as_data_urls(proxy_url: str) -> None:
