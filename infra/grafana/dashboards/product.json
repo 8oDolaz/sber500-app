@@ -504,6 +504,70 @@
         }
       ],
       "description": "Tokens sent to and received from the LLM per day, all models, from the llm_usage ledger. Excludes the fake LLM, evals and test users. Input includes cached input tokens."
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Users, all time",
+      "gridPos": {
+        "x": 12,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT registered_users AS \"registered\", active_users AS \"active at least once\", families FROM metrics_user_totals"
+        }
+      ],
+      "description": "Straight from the database, ignores the time range. registered: every account created through the bot; active at least once: did a user-initiated action on any day (the DAU rule, ADR 0003); families: spaces with at least one real member. Test and load-test accounts are excluded."
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Registered users, cumulative",
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT day::timestamp AS time, total_users AS \"total\", new_users AS \"new that day\" FROM metrics_user_growth WHERE $__timeFilter(day::timestamp) ORDER BY 1"
+        }
+      ],
+      "description": "Running total of accounts from the users table (by sign-up day, Europe/Moscow), and new accounts per day. Test and load-test accounts are excluded."
     }
   ],
   "editable": true
