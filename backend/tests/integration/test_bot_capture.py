@@ -2,6 +2,7 @@
 
 import json
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 from aiogram.methods import EditMessageText, GetFile, SendMessage
@@ -57,7 +58,7 @@ async def test_forward_confirm_says_zafiksiroval(
     assert (card.text or "").startswith("Событие: Танцы у Даши · ")
     assert list(buttons(card)) == ["Сохранить", "Изменить", "Отмена"]
     # relative dates are resolved against the forwarded message's date
-    assert f"{forwarded_at:%Y-%m-%d}" in fake_llm.calls[0].messages[1].content
+    assert f"{forwarded_at.astimezone(ZoneInfo('Europe/Moscow')):%Y-%m-%d}" in fake_llm.calls[0].messages[1].content
 
     session = await send(client, callback_update(buttons(card)["Сохранить"], tg_user_id=USER))
     [edit] = edits(session)

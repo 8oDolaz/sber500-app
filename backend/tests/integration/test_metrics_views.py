@@ -74,6 +74,10 @@ async def test_views_exclude_test_and_load_traffic(container: Container) -> None
     assert (active["dau"], active["wau"], active["mau"], active["active_families"]) == (1, 1, 1, 1)
     assert [r["new_users"] for r in await rows(container, "SELECT * FROM metrics_new_users")] == [1]
     assert [r["new_families"] for r in await rows(container, "SELECT * FROM metrics_new_families")] == [1]
+    [totals] = await rows(container, "SELECT * FROM metrics_user_totals")
+    assert (totals["registered_users"], totals["active_users"], totals["families"]) == (1, 1, 1)
+    [growth] = await rows(container, "SELECT * FROM metrics_user_growth")
+    assert (growth["new_users"], growth["total_users"]) == (1, 1)
     [cost] = await rows(container, "SELECT * FROM metrics_cost_per_dau")
     assert (cost["dau"], cost["llm_calls"], cost["cost_rub"], cost["rub_per_dau"]) == (
         1,
@@ -119,6 +123,6 @@ async def test_every_view_is_queryable(container: Container) -> None:
             "AND (table_name LIKE 'metrics_%' OR table_name LIKE 'analytics_real_%')",
         )
     ]
-    assert len(names) == 13
+    assert len(names) == 15
     for name in names:
         await rows(container, f"SELECT * FROM {name} LIMIT 1")

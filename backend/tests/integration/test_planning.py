@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import select
@@ -11,6 +12,7 @@ from planner.modules.analytics.tables import AnalyticsEventRow
 from planner.modules.planning.service import Actor
 
 PWA = {"X-Client-Platform": "pwa"}
+MSK = ZoneInfo("Europe/Moscow")
 
 
 async def login(client: httpx.AsyncClient, tg_user_id: int) -> tuple[dict[str, str], str, str]:
@@ -68,7 +70,8 @@ async def test_upcoming_events_window_uses_family_timezone(client: httpx.AsyncCl
         for title, event in [
             ("вчера", NewEvent("вчера", starts_at=now - timedelta(days=2))),
             ("скоро", NewEvent("скоро", starts_at=now + timedelta(minutes=1))),
-            ("весь день", NewEvent("весь день", start_date=(now + timedelta(days=1)).date())),
+            # tomorrow in the family's timezone (UTC's tomorrow is Moscow's today after 21:00 UTC)
+            ("весь день", NewEvent("весь день", start_date=(now.astimezone(MSK) + timedelta(days=1)).date())),
             ("через месяц", NewEvent("через месяц", starts_at=now + timedelta(days=30))),
         ]:
             await container.planning.create_event(s, actor, event, CreatedVia.BOT_DRAFT, source_text=title)
