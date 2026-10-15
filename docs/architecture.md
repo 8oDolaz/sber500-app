@@ -231,7 +231,7 @@ flowchart LR
 - **Client events** are validated against the event catalog; pre-login events are accepted only from an allowlist.
 - **DAU** follows ADR 0003: user-initiated actions only, reporting day in Europe/Moscow, one row per user, day and platform.
 - **LLM cost** comes from the ledger: one row per provider call with the proxy-reported cost. The analysis is in [`llm-cost-per-dau.md`](llm-cost-per-dau.md).
-- **Dashboards:** "kainem — technical" covers request rate, 5xx share, latency, bot, LLM, outbox and analytics rejects. "kainem — product" covers DAU/WAU/MAU, platforms, new users and families, the registration and invite funnels, AI confirm rate, ₽/day, ₽/DAU, retention and activation.
+- **Dashboards:** "kainem — technical" covers request rate, 5xx share, latency, bot, LLM, outbox and analytics rejects. "kainem — product" opens with all-time users and AI requests, then covers DAU/WAU/MAU, platforms, new users and families, the invite funnel, AI confirm rate, ₽/day, ₽/DAU, retention and activation.
 - **Alerts:** 5xx above 2%, high latency, bot failures, bot down or Telegram unreachable through the proxy, LLM failures and budget exhaustion, outbox lag, analytics rejects. Spend alerts fire at 50% and 80% of the program budget.
 
 ## 7. Security

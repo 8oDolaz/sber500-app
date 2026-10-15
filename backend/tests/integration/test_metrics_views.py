@@ -78,6 +78,13 @@ async def test_views_exclude_test_and_load_traffic(container: Container) -> None
     assert (totals["registered_users"], totals["active_users"], totals["families"]) == (1, 1, 1)
     [growth] = await rows(container, "SELECT * FROM metrics_user_growth")
     assert (growth["new_users"], growth["total_users"]) == (1, 1)
+
+    # AI usage: only the real user's product call counts (no fake provider, eval or test-user calls).
+    await container.ledger.record(
+        UsageEntry("extraction", "accelerator", "m", "timeout", 100, user_id=fake.user_id, family_id=fake.family_id)
+    )
+    [ai] = await rows(container, "SELECT * FROM metrics_ai_usage")
+    assert (ai["users_called_ai"], ai["users_got_ai_answer"], ai["ai_calls"]) == (1, 1, 1)
     [cost] = await rows(container, "SELECT * FROM metrics_cost_per_dau")
     assert (cost["dau"], cost["llm_calls"], cost["cost_rub"], cost["rub_per_dau"]) == (
         1,
@@ -123,6 +130,6 @@ async def test_every_view_is_queryable(container: Container) -> None:
             "AND (table_name LIKE 'metrics_%' OR table_name LIKE 'analytics_real_%')",
         )
     ]
-    assert len(names) == 15
+    assert len(names) == 16
     for name in names:
         await rows(container, f"SELECT * FROM {name} LIMIT 1")
