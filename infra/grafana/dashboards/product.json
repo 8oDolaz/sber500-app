@@ -13,12 +13,76 @@
   "refresh": "5m",
   "panels": [
     {
+      "id": 16,
+      "type": "stat",
+      "title": "Users, all time",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT registered_users AS \"registered\", active_users AS \"active at least once\", families FROM metrics_user_totals"
+        }
+      ],
+      "description": "Straight from the database, ignores the time range. registered: every account created through the bot; active at least once: did a user-initiated action on any day (the DAU rule, ADR 0003); families: spaces with at least one real member. Test and load-test accounts are excluded."
+    },
+    {
+      "id": 18,
+      "type": "stat",
+      "title": "AI requests, all time",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT users_called_ai AS \"users who asked AI\", users_got_ai_answer AS \"users who got an answer\", ai_calls AS \"AI requests\" FROM metrics_ai_usage"
+        }
+      ],
+      "description": "Straight from the llm_usage ledger, ignores the time range. users who asked AI: unique users whose message or photo was sent to the model, whatever the outcome; users who got an answer: at least one successful model reply; AI requests: model calls in total. Product calls only: no test accounts, fake LLM, evals or llm-ping."
+    },
+    {
       "id": 1,
       "type": "timeseries",
       "title": "DAU / WAU / MAU",
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 8,
         "w": 12,
         "h": 8
       },
@@ -49,7 +113,7 @@
       "title": "DAU by platform",
       "gridPos": {
         "x": 12,
-        "y": 0,
+        "y": 8,
         "w": 12,
         "h": 8
       },
@@ -86,7 +150,7 @@
       "title": "Stickiness (DAU / MAU)",
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 16,
         "w": 12,
         "h": 8
       },
@@ -116,7 +180,7 @@
       "title": "Active families",
       "gridPos": {
         "x": 12,
-        "y": 8,
+        "y": 16,
         "w": 12,
         "h": 8
       },
@@ -146,7 +210,7 @@
       "title": "New users by source",
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -183,7 +247,7 @@
       "title": "New families",
       "gridPos": {
         "x": 12,
-        "y": 16,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -215,42 +279,12 @@
       ]
     },
     {
-      "id": 7,
-      "type": "bargauge",
-      "title": "Registration funnel (period)",
-      "gridPos": {
-        "x": 0,
-        "y": 24,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "rawQuery": true,
-          "editorMode": "code",
-          "format": "table",
-          "rawSql": "SELECT sum(welcome_viewed) AS \"1 welcome\", sum(register_clicked) AS \"2 register clicked\", sum(logged_in) AS \"3 logged in\", sum(onboarding_completed) AS \"4 onboarding done\", sum(first_item_created) AS \"5 first item\" FROM metrics_registration_funnel WHERE $__timeFilter(day::timestamp)"
-        }
-      ]
-    },
-    {
       "id": 8,
       "type": "stat",
       "title": "Invite funnel and k-factor (period)",
       "gridPos": {
-        "x": 12,
-        "y": 24,
+        "x": 0,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -280,7 +314,7 @@
       "type": "timeseries",
       "title": "AI drafts: confirmed / revised / cancelled / expired",
       "gridPos": {
-        "x": 0,
+        "x": 12,
         "y": 32,
         "w": 12,
         "h": 8
@@ -317,8 +351,8 @@
       "type": "timeseries",
       "title": "AI confirm rate and failures",
       "gridPos": {
-        "x": 12,
-        "y": 32,
+        "x": 0,
+        "y": 40,
         "w": 12,
         "h": 8
       },
@@ -347,7 +381,7 @@
       "type": "timeseries",
       "title": "LLM cost per day by feature, ₽",
       "gridPos": {
-        "x": 0,
+        "x": 12,
         "y": 40,
         "w": 12,
         "h": 8
@@ -384,8 +418,8 @@
       "type": "timeseries",
       "title": "₽ per DAU and per active family",
       "gridPos": {
-        "x": 12,
-        "y": 40,
+        "x": 0,
+        "y": 48,
         "w": 12,
         "h": 8
       },
@@ -415,7 +449,7 @@
       "type": "table",
       "title": "Retention by cohort (D1 / D7 / D30)",
       "gridPos": {
-        "x": 0,
+        "x": 12,
         "y": 48,
         "w": 12,
         "h": 8
@@ -445,8 +479,8 @@
       "type": "timeseries",
       "title": "Family activation (≥2 members and ≥3 items in 7 days)",
       "gridPos": {
-        "x": 12,
-        "y": 48,
+        "x": 0,
+        "y": 56,
         "w": 12,
         "h": 8
       },
@@ -475,7 +509,7 @@
       "type": "timeseries",
       "title": "LLM tokens per day: input / output",
       "gridPos": {
-        "x": 0,
+        "x": 12,
         "y": 56,
         "w": 12,
         "h": 8
@@ -504,38 +538,6 @@
         }
       ],
       "description": "Tokens sent to and received from the LLM per day, all models, from the llm_usage ledger. Excludes the fake LLM, evals and test users. Input includes cached input tokens."
-    },
-    {
-      "id": 16,
-      "type": "stat",
-      "title": "Users, all time",
-      "gridPos": {
-        "x": 12,
-        "y": 56,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 0
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "rawQuery": true,
-          "editorMode": "code",
-          "format": "table",
-          "rawSql": "SELECT registered_users AS \"registered\", active_users AS \"active at least once\", families FROM metrics_user_totals"
-        }
-      ],
-      "description": "Straight from the database, ignores the time range. registered: every account created through the bot; active at least once: did a user-initiated action on any day (the DAU rule, ADR 0003); families: spaces with at least one real member. Test and load-test accounts are excluded."
     },
     {
       "id": 17,
